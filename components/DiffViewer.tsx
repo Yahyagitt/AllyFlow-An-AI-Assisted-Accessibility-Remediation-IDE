@@ -27,7 +27,7 @@ function MonacoLoadingPlaceholder() {
 
 // ── Stable Monaco options object (never re-created between renders) ───────────
 const MONACO_OPTIONS = {
-    readOnly: true,
+    readOnly: false,
     renderSideBySide: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
