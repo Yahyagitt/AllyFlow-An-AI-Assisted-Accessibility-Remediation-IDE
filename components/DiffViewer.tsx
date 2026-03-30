@@ -75,7 +75,7 @@ const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
 }) {
     return (
         <DiffEditor
-            height="100%"
+            height="calc(100vh - 150px)"
             language="html"
             original={original}
             modified={modified}

@@ -28,7 +28,7 @@ async function applyGeminifix(
 
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use the original gemini-pro model which is guaranteed to work on older SDKs
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     // ── Hard cap: never send more than 500 chars of HTML to Gemini ──────────
     // Axe-core sometimes reports violations on root <html>/<body> nodes whose
     // .html snapshot is the entire page. Truncating prevents 429 quota errors.

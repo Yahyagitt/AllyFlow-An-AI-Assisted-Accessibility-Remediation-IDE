@@ -26,7 +26,8 @@ const StatCard = memo(function StatCard({
 });
 
 export default function DashboardPage() {
-    const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+    const [activeTab, setActiveTab] = useState<TabId>("audit");
+
 
     // ── Scan state ────────────────────────────────────────────────────────────
     const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
@@ -104,6 +105,7 @@ export default function DashboardPage() {
             const data: HealResponse = await res.json();
             setHealResult(data);
             setHealStatus("done");
+            setActiveTab("diff");
         } catch (err) {
             setHealError(err instanceof Error ? err.message : "Unknown error");
             setHealStatus("error");
@@ -139,16 +141,17 @@ export default function DashboardPage() {
     }, [masterHtml]);
 
     const isHealing = healStatus === "healing";
-    const hasResults = scanStatus === "complete" || scanStatus === "scanning";
 
     return (
         // True IDE root — h-screen overflow-hidden, never scrolls the browser
-        <div className="flex h-screen overflow-hidden bg-[#1e1e1e] text-slate-100">
+        <div className="flex h-screen bg-slate-900 text-slate-100">
             {/* ── Sidebar ── */}
-            <Sidebar activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
+            <div className="sticky top-0 h-screen flex-shrink-0">
+                <Sidebar activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
+            </div>
 
             {/* ── Main column ── */}
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <div className="flex flex-col flex-1 min-w-0 overflow-y-auto">
 
                 {/* ── Top bar ── */}
                 <header className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#323233] border-b border-slate-700/60 flex-shrink-0">
@@ -201,37 +204,36 @@ export default function DashboardPage() {
                     </button>
                 </header>
 
-                {/* ── URL input bar ── */}
-                <div className="px-4 py-3 bg-[#252526] border-b border-slate-700/40 flex-shrink-0">
-                    <UrlInputBar status={scanStatus} onScan={handleScan} />
-                </div>
+                {/* ── AUDIT VIEW ── URL bar + error banners + results */}
+                {activeTab === "audit" && (
+                    <>
+                        {/* URL input bar */}
+                        <div className="px-4 py-3 bg-[#252526] border-b border-slate-700/40 flex-shrink-0">
+                            <UrlInputBar status={scanStatus} onScan={handleScan} />
+                        </div>
 
-                {/* ── Error banners ── */}
-                {(scanError || healError) && (
-                    <div className="flex-shrink-0 px-4 py-2 space-y-1.5">
-                        {scanError && scanStatus === "error" && (
-                            <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 text-xs px-3 py-2">
-                                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span className="flex-1 truncate"><strong>Scan failed:</strong> {scanError}</span>
-                                <button onClick={() => setScanError(null)} className="hover:text-red-300 transition-colors"><X className="w-3 h-3" /></button>
+                        {/* Error banners */}
+                        {(scanError || healError) && (
+                            <div className="flex-shrink-0 px-4 py-2 space-y-1.5">
+                                {scanError && scanStatus === "error" && (
+                                    <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 text-xs px-3 py-2">
+                                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span className="flex-1 truncate"><strong>Scan failed:</strong> {scanError}</span>
+                                        <button onClick={() => setScanError(null)} className="hover:text-red-300 transition-colors"><X className="w-3 h-3" /></button>
+                                    </div>
+                                )}
+                                {healError && healStatus === "error" && (
+                                    <div role="alert" className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-400 text-xs px-3 py-2">
+                                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span className="flex-1 truncate"><strong>Fix failed:</strong> {healError}</span>
+                                        <button onClick={() => setHealError(null)} className="hover:text-orange-300 transition-colors"><X className="w-3 h-3" /></button>
+                                    </div>
+                                )}
                             </div>
                         )}
-                        {healError && healStatus === "error" && (
-                            <div role="alert" className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-400 text-xs px-3 py-2">
-                                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span className="flex-1 truncate"><strong>Fix failed:</strong> {healError}</span>
-                                <button onClick={() => setHealError(null)} className="hover:text-orange-300 transition-colors"><X className="w-3 h-3" /></button>
-                            </div>
-                        )}
-                    </div>
-                )}
 
-                {/* ── IDE split-panel workspace ── */}
-                {hasResults ? (
-                    // Two-panel IDE view: violations (top, scrollable) + Monaco (bottom, fixed)
-                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                        {/* Top panel — Audit Results (fills remaining space, scrolls internally) */}
-                        <div className="flex-1 min-h-0 overflow-hidden border-b border-slate-700/50">
+                        {/* Audit Results panel */}
+                        <div className="flex-1 min-h-0 overflow-hidden">
                             <AuditResults
                                 status={scanStatus}
                                 violations={violations}
@@ -241,30 +243,33 @@ export default function DashboardPage() {
                                 onFix={handleFix}
                             />
                         </div>
-                        {/* Bottom panel — Monaco Diff Viewer (fixed 360px height) */}
-                        <div className="flex-shrink-0 h-[360px]">
-                            <DiffViewer
-                                status={scanStatus}
-                                beforeCode={sanitizedHtml}
-                                healResult={healResult}
-                                isHealing={isHealing}
-                                appliedResults={appliedResults}
-                                onApplyFix={handleApplyFix}
-                            />
-                        </div>
+                    </>
+                )}
+
+                {/* ── DIFF VIEW ── DiffViewer only, full height */}
+                {activeTab === "diff" && (
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <DiffViewer
+                            status={scanStatus}
+                            beforeCode={sanitizedHtml}
+                            healResult={healResult}
+                            isHealing={isHealing}
+                            appliedResults={appliedResults}
+                            onApplyFix={handleApplyFix}
+                        />
                     </div>
-                ) : (
-                    // Idle / pre-scan dashboard
+                )}
+
+                {/* ── DASHBOARD / other tabs ── */}
+                {(activeTab === "dashboard" || activeTab === "settings") && (
                     <div className="flex-1 overflow-y-auto min-h-0 p-5">
                         {activeTab === "dashboard" && (
                             <div className="max-w-2xl mx-auto space-y-5 animate-fade-in-up">
-                                {/* Quick stats */}
                                 <div className="grid grid-cols-3 gap-3">
                                     <StatCard label="Scans Today" value={0} color="text-blue-400" />
                                     <StatCard label="Violations Found" value={0} color="text-red-400" />
                                     <StatCard label="Fixes Applied" value={appliedFixCount} color="text-emerald-400" />
                                 </div>
-                                {/* Getting started card */}
                                 <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center space-y-4">
                                     <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto">
                                         <Activity className="w-7 h-7 text-blue-400" />
