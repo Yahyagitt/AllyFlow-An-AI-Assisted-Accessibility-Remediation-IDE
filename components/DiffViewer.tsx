@@ -5,7 +5,7 @@ import {
     Zap, Sparkles, Cpu, CheckCircle2, ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo, useRef } from "react";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
@@ -25,9 +25,10 @@ function MonacoLoadingPlaceholder() {
     );
 }
 
-// ── Stable Monaco options object (never re-created between renders) ───────────
+// ── Stable Monaco options object ──────────────────────────────────────────────
 const MONACO_OPTIONS = {
-    readOnly: false,
+    readOnly: false,           // DAY 5: Makes the modified (right) side editable
+    originalEditable: false,   // DAY 5: Explicitly locks the original (left) side
     renderSideBySide: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -65,13 +66,15 @@ interface DiffViewerProps {
     onApplyFix?: (violationId: string, result: HealResponse) => void;
 }
 
-// ── Memoized inner Monaco renderer — only re-renders when content changes ─────
+// ── Memoized inner Monaco renderer ────────────────────────────────────────────
 const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
     original,
     modified,
+    onMount,
 }: {
     original: string;
     modified: string;
+    onMount: (editor: any) => void;
 }) {
     return (
         <DiffEditor
@@ -81,6 +84,7 @@ const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
             modified={modified}
             theme="vs-dark"
             options={MONACO_OPTIONS}
+            onMount={onMount} // Wire up the mount function to capture the instance
         />
     );
 });
@@ -94,7 +98,16 @@ export default function DiffViewer({
     onApplyFix,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
+
+    // ── DAY 5: The Live Editor Ref ────────────────────────────────────────────
+    const modifiedEditorRef = useRef<any>(null);
+
     useEffect(() => { setMounted(true); }, []);
+
+    // Extract the modified right-side editor instance when Monaco boots up
+    const handleEditorMount = (editor: any) => {
+        modifiedEditorRef.current = editor.getModifiedEditor();
+    };
 
     const hasHealResult = !!healResult;
 
@@ -112,7 +125,18 @@ export default function DiffViewer({
     function handleApplyClick() {
         if (!healResult || !onApplyFix || isThisApplied) return;
         const violationId = healResult.original.slice(0, 40);
-        onApplyFix(violationId, healResult);
+
+        // ── DAY 5: Grab the live text from the editor, not the old state! ──
+        const customFixedText = modifiedEditorRef.current
+            ? modifiedEditorRef.current.getValue()
+            : healResult.fixed;
+
+        const finalResultToApply: HealResponse = {
+            ...healResult,
+            fixed: customFixedText
+        };
+
+        onApplyFix(violationId, finalResultToApply);
     }
 
     return (
@@ -161,7 +185,7 @@ export default function DiffViewer({
                         <span className="flex items-center gap-1 text-slate-500">
                             <Code2 className="w-3 h-3" />
                             <span className="text-emerald-400/70">
-                                {hasHealResult ? "Fixed" : "After"}
+                                {hasHealResult ? "Fixed (Editable)" : "After"}
                             </span>
                         </span>
                     </div>
@@ -198,8 +222,6 @@ export default function DiffViewer({
 
             {/* ── Monaco area ── */}
             <div className="relative flex-1 min-h-0">
-
-                {/* Healing overlay */}
                 {isHealing && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/90 backdrop-blur-sm">
                         <div className="relative w-10 h-10">
@@ -213,7 +235,6 @@ export default function DiffViewer({
                     </div>
                 )}
 
-                {/* Scan overlay */}
                 {status === "scanning" && !isHealing && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[#1e1e1e]/80 backdrop-blur-sm">
                         <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
@@ -222,7 +243,7 @@ export default function DiffViewer({
                 )}
 
                 {showEditor ? (
-                    <MemoizedDiffEditor original={original} modified={modified} />
+                    <MemoizedDiffEditor original={original} modified={modified} onMount={handleEditorMount} />
                 ) : (
                     !mounted && <MonacoLoadingPlaceholder />
                 )}

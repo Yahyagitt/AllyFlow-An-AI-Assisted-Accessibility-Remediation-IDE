@@ -20,6 +20,7 @@ export interface ScanResponse {
     sanitizedHtml: string;
     violations: AxeViolation[];
     passes: number;
+    seoResults: SeoCheck[];
     timestamp: string;
 }
 
@@ -28,6 +29,14 @@ export interface HealResponse {
     fixed: string;
     strategy: "jsdom" | "gemini";
     description: string;
+}
+
+export interface SeoCheck {
+    id: string;
+    status: "pass" | "fail";
+    title: string;
+    description: string;
+    actualValue: string;
 }
 
 export type HealStatus = "idle" | "healing" | "done" | "error";

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- SEO VIOLATION 1: Missing <title> tag -->
+    <!-- SEO VIOLATION 2: Missing <meta name="description"> tag -->
+
+    <style>
+        /* A11Y VIOLATION 1: Terrible color contrast */
+        .bad-contrast {
+            color: #cccccc;
+            background-color: #ffffff;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- SEO VIOLATION 3: Multiple H1 tags (Best practice is exactly ONE per page) -->
+    <h1>Welcome to the Ultimate Test Page</h1>
+    <h1>A Second H1 Tag (Search engines hate this)</h1>
+
+    <div class="bad-contrast">
+        This text has terrible color contrast and will trigger a WCAG AA violation.
+    </div>
+
+    <!-- A11Y VIOLATION 2: Image missing alt text (Ready for Multimodal AI fixing!) -->
+    <img src="https://images.unsplash.com/photo-1517849845537-4d257902454a" width="500">
+
+    <!-- A11Y VIOLATION 3: Form input missing an associated <label> -->
+    <div style="margin-top: 20px;">
+        <input type="text" placeholder="Search...">
+    </div>
+
+    <!-- A11Y VIOLATION 4: Button with absolutely no accessible text inside it -->
+    <div style="margin-top: 20px;">
+        <button style="width: 50px; height: 50px;"></button>
+    </div>
+
+</body>
+
+</html>

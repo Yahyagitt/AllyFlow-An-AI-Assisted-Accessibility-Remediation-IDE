@@ -1,5 +1,5 @@
 "use client";
-
+import { useDailyScans } from "@/lib/useDailyScans";
 import { useState, useCallback, memo } from "react";
 import Sidebar from "@/components/Sidebar";
 import UrlInputBar, { type ScanStatus } from "@/components/UrlInputBar";
@@ -8,7 +8,7 @@ import DiffViewer from "@/components/DiffViewer";
 import { Activity, Globe, Download, CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
-    AxeViolation, ScanResponse, HealResponse, HealStatus,
+    AxeViolation, ScanResponse, HealResponse, HealStatus, SeoCheck
 } from "@/lib/scan-types";
 
 type TabId = "dashboard" | "audit" | "diff" | "settings";
@@ -27,12 +27,14 @@ const StatCard = memo(function StatCard({
 
 export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState<TabId>("audit");
+    const { scansToday, incrementScans } = useDailyScans();
 
 
     // ── Scan state ────────────────────────────────────────────────────────────
     const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
     const [scannedUrl, setScannedUrl] = useState<string | null>(null);
     const [violations, setViolations] = useState<AxeViolation[]>([]);
+    const [seoResults, setSeoResults] = useState<SeoCheck[]>([]);
     const [sanitizedHtml, setSanitizedHtml] = useState<string | undefined>(undefined);
     const [scanError, setScanError] = useState<string | null>(null);
 
@@ -50,11 +52,30 @@ export default function DashboardPage() {
     const appliedFixCount = resolvedIds.size;
     const canDownload = !!masterHtml && appliedFixCount > 0;
 
+    // ── Scoring Algorithm ─────────────────────────────────────────────────────
+    const calculateScore = () => {
+        if (!scannedUrl) return 0; // If no scan yet, show 0
+        if (violations.length === 0) return 100; // Perfect score!
+
+        let deduction = 0;
+        violations.forEach(v => {
+            if (v.impact === "critical") deduction += 10;
+            else if (v.impact === "serious") deduction += 5;
+            else if (v.impact === "moderate") deduction += 2;
+            else if (v.impact === "minor") deduction += 1;
+        });
+
+        return Math.max(0, 100 - deduction); // Prevent negative scores
+    };
+
+    const currentScore = calculateScore();
+
     // ── Scan ──────────────────────────────────────────────────────────────────
     const handleScan = useCallback(async (url: string) => {
         setScanStatus("scanning");
         setScannedUrl(url);
         setViolations([]);
+        setSeoResults([]);
         setSanitizedHtml(undefined);
         setScanError(null);
         setHealResult(null);
@@ -76,9 +97,11 @@ export default function DashboardPage() {
             }
             const data: ScanResponse = await res.json();
             setViolations(data.violations);
+            setSeoResults(data.seoResults || []);
             setSanitizedHtml(data.sanitizedHtml);
             setMasterHtml(data.sanitizedHtml);
             setScanStatus("complete");
+            incrementScans();
         } catch (err) {
             setScanError(err instanceof Error ? err.message : "Unknown error");
             setScanStatus("error");
@@ -212,6 +235,15 @@ export default function DashboardPage() {
                             <UrlInputBar status={scanStatus} onScan={handleScan} />
                         </div>
 
+                        <div className="px-4 py-3 border-b border-slate-700/40 bg-slate-800/20 flex-shrink-0">
+                            <div className="grid grid-cols-4 gap-4 max-w-5xl mx-auto">
+                                <StatCard label="Scans Today" value={scansToday} color="text-blue-400" />
+                                <StatCard label="Violations Found" value={violations.length} color="text-red-400" />
+                                <StatCard label="A11y Score" value={currentScore} color="text-yellow-400" />
+                                <StatCard label="Fixes Applied" value={appliedFixCount} color="text-emerald-400" />
+                            </div>
+                        </div>
+
                         {/* Error banners */}
                         {(scanError || healError) && (
                             <div className="flex-shrink-0 px-4 py-2 space-y-1.5">
@@ -237,6 +269,7 @@ export default function DashboardPage() {
                             <AuditResults
                                 status={scanStatus}
                                 violations={violations}
+                                seoResults={seoResults}
                                 healStatus={healStatus}
                                 healingViolationId={healingViolationId}
                                 resolvedIds={resolvedIds}
@@ -260,41 +293,13 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* ── DASHBOARD / other tabs ── */}
-                {(activeTab === "dashboard" || activeTab === "settings") && (
+
+                {/* ── SETTINGS ── */}
+                {activeTab === "settings" && (
                     <div className="flex-1 overflow-y-auto min-h-0 p-5">
-                        {activeTab === "dashboard" && (
-                            <div className="max-w-2xl mx-auto space-y-5 animate-fade-in-up">
-                                <div className="grid grid-cols-3 gap-3">
-                                    <StatCard label="Scans Today" value={0} color="text-blue-400" />
-                                    <StatCard label="Violations Found" value={0} color="text-red-400" />
-                                    <StatCard label="Fixes Applied" value={appliedFixCount} color="text-emerald-400" />
-                                </div>
-                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center space-y-4">
-                                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto">
-                                        <Activity className="w-7 h-7 text-blue-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-base font-semibold text-slate-200 mb-1">Ready to audit</h2>
-                                        <p className="text-sm text-slate-500 max-w-sm mx-auto">
-                                            Enter any URL in the bar above and click <strong className="text-slate-400">Scan</strong>. AllyFlow will run a full WCAG 2.1 AA audit via axe-core.
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center justify-center gap-6 text-xs text-slate-500">
-                                        {["Puppeteer scanner", "axe-core audit", "AI-powered fixes", "One-click export"].map((f) => (
-                                            <span key={f} className="flex items-center gap-1">
-                                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />{f}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {activeTab === "settings" && (
-                            <div className="max-w-lg mx-auto mt-10 bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center text-sm text-slate-500">
-                                Settings panel coming soon.
-                            </div>
-                        )}
+                        <div className="max-w-lg mx-auto mt-10 bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center text-sm text-slate-500">
+                            Settings panel coming soon.
+                        </div>
                     </div>
                 )}
             </div>
