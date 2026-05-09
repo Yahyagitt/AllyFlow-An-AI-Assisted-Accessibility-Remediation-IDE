@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import {
+    Activity,
     Shield,
     Code2,
     Settings,
@@ -18,8 +19,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-    { id: "audit", icon: Shield, label: "Audit", badge: 3 },
-    { id: "diff", icon: Code2, label: "Diff View" },
+    { id: "dashboard", icon: Activity, label: "Dashboard" },
+    { id: "audit", icon: Shield, label: "Audit Studio" },
     { id: "settings", icon: Settings, label: "Settings" },
 ];
 

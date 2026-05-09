@@ -1,62 +1,59 @@
 "use client";
+
 import { useDailyScans } from "@/lib/useDailyScans";
 import { useState, useCallback, memo } from "react";
 import Sidebar from "@/components/Sidebar";
 import UrlInputBar, { type ScanStatus } from "@/components/UrlInputBar";
 import AuditResults from "@/components/AuditResults";
 import DiffViewer from "@/components/DiffViewer";
-import { Activity, Globe, Download, CheckCircle2, AlertTriangle, X } from "lucide-react";
+import {
+    Activity, Globe, Download, CheckCircle2, AlertTriangle,
+    X, ArrowRight, ShieldAlert, SearchCheck
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
     AxeViolation, ScanResponse, HealResponse, HealStatus, SeoCheck
 } from "@/lib/scan-types";
 
-type TabId = "dashboard" | "audit" | "diff" | "settings";
+type TabId = "dashboard" | "audit" | "settings";
 
 // ── Memoized stat card to prevent re-renders ───────────────────────────────────
 const StatCard = memo(function StatCard({
-    label, value, color,
-}: { label: string; value: number; color: string }) {
+    label, value, color, subtitle
+}: { label: string; value: number | string; color: string; subtitle: string }) {
     return (
-        <div className="bg-slate-800/60 rounded-lg border border-slate-700/40 px-4 py-3 flex items-center gap-3">
-            <div className={cn("text-2xl font-bold tabular-nums", color)}>{value}</div>
-            <div className="text-[11px] text-slate-500 leading-tight">{label}</div>
+        <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center justify-center text-center shadow-lg">
+            <div className={cn("text-4xl font-black tracking-tight mb-1", color)}>{value}</div>
+            <div className="text-sm font-bold text-slate-300">{label}</div>
+            <div className="text-[11px] text-slate-500 mt-1">{subtitle}</div>
         </div>
     );
 });
 
 export default function DashboardPage() {
-    const [activeTab, setActiveTab] = useState<TabId>("audit");
+    const [activeTab, setActiveTab] = useState<TabId>("dashboard");
     const { scansToday, incrementScans } = useDailyScans();
 
-
-    // ── Scan state ────────────────────────────────────────────────────────────
     const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
     const [scannedUrl, setScannedUrl] = useState<string | null>(null);
     const [violations, setViolations] = useState<AxeViolation[]>([]);
     const [seoResults, setSeoResults] = useState<SeoCheck[]>([]);
-    const [sanitizedHtml, setSanitizedHtml] = useState<string | undefined>(undefined);
     const [scanError, setScanError] = useState<string | null>(null);
 
-    // ── Heal state ────────────────────────────────────────────────────────────
     const [healStatus, setHealStatus] = useState<HealStatus>("idle");
     const [healingViolationId, setHealingViolationId] = useState<string | null>(null);
     const [healResult, setHealResult] = useState<HealResponse | null>(null);
     const [healError, setHealError] = useState<string | null>(null);
 
-    // ── Master document (IDE workflow) ────────────────────────────────────────
     const [masterHtml, setMasterHtml] = useState<string | undefined>(undefined);
     const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
-    const [appliedResults, setAppliedResults] = useState<Map<string, HealResponse>>(new Map());
 
     const appliedFixCount = resolvedIds.size;
     const canDownload = !!masterHtml && appliedFixCount > 0;
 
-    // ── Scoring Algorithm ─────────────────────────────────────────────────────
-    const calculateScore = () => {
-        if (!scannedUrl) return 0; // If no scan yet, show 0
-        if (violations.length === 0) return 100; // Perfect score!
-
+    const currentScore = (() => {
+        if (!scannedUrl) return 0;
+        if (violations.length === 0) return 100;
         let deduction = 0;
         violations.forEach(v => {
             if (v.impact === "critical") deduction += 10;
@@ -64,26 +61,22 @@ export default function DashboardPage() {
             else if (v.impact === "moderate") deduction += 2;
             else if (v.impact === "minor") deduction += 1;
         });
+        return Math.max(0, 100 - deduction);
+    })();
 
-        return Math.max(0, 100 - deduction); // Prevent negative scores
-    };
+    const seoFailures = seoResults.filter(s => s.status === "fail").length;
 
-    const currentScore = calculateScore();
-
-    // ── Scan ──────────────────────────────────────────────────────────────────
     const handleScan = useCallback(async (url: string) => {
         setScanStatus("scanning");
         setScannedUrl(url);
         setViolations([]);
         setSeoResults([]);
-        setSanitizedHtml(undefined);
         setScanError(null);
         setHealResult(null);
         setHealStatus("idle");
         setHealingViolationId(null);
         setMasterHtml(undefined);
         setResolvedIds(new Set());
-        setAppliedResults(new Map());
 
         try {
             const res = await fetch("/api/scan", {
@@ -91,24 +84,20 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ url }),
             });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ error: "Unknown error" }));
-                throw new Error(err.error ?? `HTTP ${res.status}`);
-            }
+            if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
+
             const data: ScanResponse = await res.json();
             setViolations(data.violations);
             setSeoResults(data.seoResults || []);
-            setSanitizedHtml(data.sanitizedHtml);
             setMasterHtml(data.sanitizedHtml);
             setScanStatus("complete");
             incrementScans();
         } catch (err) {
-            setScanError(err instanceof Error ? err.message : "Unknown error");
+            setScanError(err instanceof Error ? err.message : "Scan failed");
             setScanStatus("error");
         }
-    }, []);
+    }, [incrementScans]);
 
-    // ── Fix (Human-in-the-Loop) ───────────────────────────────────────────────
     const handleFix = useCallback(async (violation: AxeViolation, nodeHtml: string) => {
         setHealStatus("healing");
         setHealingViolationId(violation.id);
@@ -121,35 +110,25 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ violation, nodeHtml }),
             });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ error: "Unknown error" }));
-                throw new Error(err.error ?? `HTTP ${res.status}`);
-            }
+            if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
+
             const data: HealResponse = await res.json();
             setHealResult(data);
             setHealStatus("done");
-            setActiveTab("diff");
         } catch (err) {
-            setHealError(err instanceof Error ? err.message : "Unknown error");
+            setHealError(err instanceof Error ? err.message : "Fix failed");
             setHealStatus("error");
-        } finally {
             setHealingViolationId(null);
         }
     }, []);
 
-    // ── Apply Fix to master document ──────────────────────────────────────────
-    const handleApplyFix = useCallback((violationId: string, result: HealResponse) => {
-        setMasterHtml((prev) => {
-            if (!prev) return prev;
-            return prev.includes(result.original)
-                ? prev.replace(result.original, result.fixed)
-                : prev;
-        });
+    const handleApplyFix = useCallback((violationId: string, fullNewHtml: string) => {
+        setMasterHtml(fullNewHtml);
         setResolvedIds((prev) => new Set([...prev, violationId]));
-        setAppliedResults((prev) => new Map([...prev, [violationId, result]]));
+        setHealResult(null);
+        setHealingViolationId(null);
     }, []);
 
-    // ── Download master document ──────────────────────────────────────────────
     const handleDownload = useCallback(() => {
         if (!masterHtml) return;
         const blob = new Blob([masterHtml], { type: "text/html;charset=utf-8" });
@@ -163,142 +142,172 @@ export default function DashboardPage() {
         URL.revokeObjectURL(url);
     }, [masterHtml]);
 
-    const isHealing = healStatus === "healing";
-
     return (
-        // True IDE root — h-screen overflow-hidden, never scrolls the browser
-        <div className="flex h-screen bg-slate-900 text-slate-100">
-            {/* ── Sidebar ── */}
-            <div className="sticky top-0 h-screen flex-shrink-0">
-                <Sidebar activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
-            </div>
+        <div className="flex h-screen bg-[#111113] text-slate-100 overflow-hidden font-sans">
+            <Sidebar activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
 
-            {/* ── Main column ── */}
-            <div className="flex flex-col flex-1 min-w-0 overflow-y-auto">
+            <div className="flex flex-col flex-1 min-w-0 h-screen relative">
 
-                {/* ── Top bar ── */}
-                <header className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#323233] border-b border-slate-700/60 flex-shrink-0">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        <Activity className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-slate-300">AllyFlow</span>
-
-                        {/* URL breadcrumb */}
-                        {scannedUrl && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 min-w-0">
-                                <span className="text-slate-600">/</span>
-                                <Globe className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate max-w-[280px]">{scannedUrl}</span>
-                            </div>
-                        )}
-
-                        {/* Fix count pill */}
-                        {appliedFixCount > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 rounded-full px-2 py-0.5">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                {appliedFixCount} fix{appliedFixCount !== 1 ? "es" : ""}
-                            </span>
-                        )}
+                {/* Global Error Banner */}
+                {scanError && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm px-4 py-2 shadow-2xl backdrop-blur-md">
+                        <AlertTriangle className="w-4 h-4" /> <strong>Scan failed:</strong> {scanError}
+                        <button onClick={() => setScanError(null)} className="ml-2"><X className="w-4 h-4 hover:text-red-300" /></button>
                     </div>
+                )}
 
-                    {/* Download button */}
-                    <button
-                        id="download-healed-btn"
-                        onClick={handleDownload}
-                        disabled={!canDownload}
-                        title={
-                            !masterHtml ? "Scan a page first"
-                                : appliedFixCount === 0 ? "Apply at least one fix to enable download"
-                                    : `Download with ${appliedFixCount} fix${appliedFixCount !== 1 ? "es" : ""} applied`
-                        }
-                        className={cn(
-                            "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-150 flex-shrink-0",
-                            canDownload
-                                ? "bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 shadow-sm shadow-emerald-900/40"
-                                : "bg-slate-800/50 border-slate-700/50 text-slate-500 cursor-not-allowed"
-                        )}
-                    >
-                        <Download className="w-3 h-3" />
-                        Download Healed Code
-                        {appliedFixCount > 0 && (
-                            <span className="bg-white/20 rounded-full px-1.5 text-[10px] font-bold">
-                                {appliedFixCount}
-                            </span>
-                        )}
-                    </button>
-                </header>
+                {/* ── VIEW 1: DASHBOARD (REPORTING PHASE) ── */}
+                {activeTab === "dashboard" && (
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="max-w-4xl mx-auto pt-20 px-8 pb-12">
 
-                {/* ── AUDIT VIEW ── URL bar + error banners + results */}
+                            {/* Hero Section */}
+                            <div className="text-center mb-10 space-y-3">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-2 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]">
+                                    <SearchCheck className="w-8 h-8" />
+                                </div>
+                                <h1 className="text-3xl font-bold tracking-tight text-slate-100">Audit a Website</h1>
+                                <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                    Run a comprehensive WCAG 2.1 AA accessibility and basic SEO health check. Enter a URL below to generate your report.
+                                </p>
+                            </div>
+
+                            {/* The Scanner */}
+                            <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50 shadow-2xl backdrop-blur-sm mb-12">
+                                <UrlInputBar status={scanStatus} onScan={handleScan} />
+                            </div>
+
+                            {/* The Report (Only shows when scan is complete) */}
+                            {scanStatus === "complete" && (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                                            <ShieldAlert className="w-5 h-5 text-violet-400" />
+                                            Audit Report Generated
+                                        </h2>
+                                        <button
+                                            onClick={() => setActiveTab("audit")}
+                                            className="group flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-[0_0_30px_-5px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_-5px_rgba(124,58,237,0.6)]"
+                                        >
+                                            Review & Fix Issues
+                                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <StatCard
+                                            label="A11y Score"
+                                            value={currentScore}
+                                            color={currentScore > 80 ? "text-emerald-400" : currentScore > 50 ? "text-yellow-400" : "text-red-400"}
+                                            subtitle="Out of 100 points"
+                                        />
+                                        <StatCard
+                                            label="Accessibility Issues"
+                                            value={violations.length}
+                                            color={violations.length > 0 ? "text-orange-400" : "text-emerald-400"}
+                                            subtitle="WCAG 2.1 AA Violations"
+                                        />
+                                        <StatCard
+                                            label="SEO Failures"
+                                            value={seoFailures}
+                                            color={seoFailures > 0 ? "text-pink-400" : "text-emerald-400"}
+                                            subtitle="Missing Tags/Structure"
+                                        />
+                                        <StatCard
+                                            label="Scans Today"
+                                            value={scansToday}
+                                            color="text-blue-400"
+                                            subtitle="Your daily usage"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── VIEW 2: AUDIT STUDIO (THE IDE) ── */}
                 {activeTab === "audit" && (
-                    <>
-                        {/* URL input bar */}
-                        <div className="px-4 py-3 bg-[#252526] border-b border-slate-700/40 flex-shrink-0">
-                            <UrlInputBar status={scanStatus} onScan={handleScan} />
-                        </div>
-
-                        <div className="px-4 py-3 border-b border-slate-700/40 bg-slate-800/20 flex-shrink-0">
-                            <div className="grid grid-cols-4 gap-4 max-w-5xl mx-auto">
-                                <StatCard label="Scans Today" value={scansToday} color="text-blue-400" />
-                                <StatCard label="Violations Found" value={violations.length} color="text-red-400" />
-                                <StatCard label="A11y Score" value={currentScore} color="text-yellow-400" />
-                                <StatCard label="Fixes Applied" value={appliedFixCount} color="text-emerald-400" />
-                            </div>
-                        </div>
-
-                        {/* Error banners */}
-                        {(scanError || healError) && (
-                            <div className="flex-shrink-0 px-4 py-2 space-y-1.5">
-                                {scanError && scanStatus === "error" && (
-                                    <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 text-xs px-3 py-2">
-                                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span className="flex-1 truncate"><strong>Scan failed:</strong> {scanError}</span>
-                                        <button onClick={() => setScanError(null)} className="hover:text-red-300 transition-colors"><X className="w-3 h-3" /></button>
-                                    </div>
-                                )}
-                                {healError && healStatus === "error" && (
-                                    <div role="alert" className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-400 text-xs px-3 py-2">
-                                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span className="flex-1 truncate"><strong>Fix failed:</strong> {healError}</span>
-                                        <button onClick={() => setHealError(null)} className="hover:text-orange-300 transition-colors"><X className="w-3 h-3" /></button>
-                                    </div>
+                    <div className="flex flex-col h-full bg-[#1e1e1e] animate-in fade-in duration-300">
+                        {/* IDE Header */}
+                        <header className="flex items-center justify-between px-4 h-14 bg-[#252526] border-b border-slate-700/60 flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <Activity className="w-4 h-4 text-violet-400" />
+                                <span className="text-sm font-semibold text-slate-200">Remediation Studio</span>
+                                {scannedUrl && (
+                                    <>
+                                        <span className="text-slate-600">/</span>
+                                        <span className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-800/50 px-2 py-1 rounded-md border border-slate-700/50">
+                                            <Globe className="w-3 h-3" /> {scannedUrl}
+                                        </span>
+                                    </>
                                 )}
                             </div>
-                        )}
 
-                        {/* Audit Results panel */}
-                        <div className="flex-1 min-h-0 overflow-hidden">
-                            <AuditResults
-                                status={scanStatus}
-                                violations={violations}
-                                seoResults={seoResults}
-                                healStatus={healStatus}
-                                healingViolationId={healingViolationId}
-                                resolvedIds={resolvedIds}
-                                onFix={handleFix}
-                            />
+                            <div className="flex items-center gap-3">
+                                {appliedFixCount > 0 && (
+                                    <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg font-medium">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        {appliedFixCount} Fixes Ready
+                                    </span>
+                                )}
+                                <button
+                                    onClick={handleDownload}
+                                    disabled={!canDownload}
+                                    className={cn(
+                                        "flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg transition-all",
+                                        canDownload
+                                            ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/40"
+                                            : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                                    )}
+                                >
+                                    <Download className="w-4 h-4" /> Export Document
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Split Panes */}
+                        <div className="flex-1 flex flex-row min-h-0">
+                            {/* Left: Violation List */}
+                            <div className="w-[450px] flex flex-col min-h-0 border-r border-slate-700/60 bg-[#18181a] shadow-2xl z-10">
+                                {healError && (
+                                    <div className="p-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex gap-2">
+                                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                        <span className="flex-1">{healError}</span>
+                                        <button onClick={() => setHealError(null)}><X className="w-3 h-3" /></button>
+                                    </div>
+                                )}
+                                <AuditResults
+                                    status={scanStatus}
+                                    violations={violations}
+                                    seoResults={seoResults}
+                                    healStatus={healStatus}
+                                    healingViolationId={healingViolationId}
+                                    resolvedIds={resolvedIds}
+                                    onFix={handleFix}
+                                />
+                            </div>
+
+                            {/* Right: Monaco Editor */}
+                            <div className="flex-1 flex flex-col min-h-0 bg-[#1e1e1e]">
+                                <DiffViewer
+                                    status={scanStatus}
+                                    beforeCode={masterHtml}
+                                    healResult={healResult}
+                                    activeViolationId={healingViolationId}
+                                    isHealing={healStatus === "healing"}
+                                    onApplyFix={handleApplyFix}
+                                />
+                            </div>
                         </div>
-                    </>
-                )}
-
-                {/* ── DIFF VIEW ── DiffViewer only, full height */}
-                {activeTab === "diff" && (
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                        <DiffViewer
-                            status={scanStatus}
-                            beforeCode={sanitizedHtml}
-                            healResult={healResult}
-                            isHealing={isHealing}
-                            appliedResults={appliedResults}
-                            onApplyFix={handleApplyFix}
-                        />
                     </div>
                 )}
 
-
-                {/* ── SETTINGS ── */}
+                {/* ── VIEW 3: SETTINGS ── */}
                 {activeTab === "settings" && (
-                    <div className="flex-1 overflow-y-auto min-h-0 p-5">
-                        <div className="max-w-lg mx-auto mt-10 bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center text-sm text-slate-500">
-                            Settings panel coming soon.
+                    <div className="flex-1 p-8">
+                        <div className="max-w-2xl mx-auto bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center text-slate-400">
+                            Settings coming soon.
                         </div>
                     </div>
                 )}

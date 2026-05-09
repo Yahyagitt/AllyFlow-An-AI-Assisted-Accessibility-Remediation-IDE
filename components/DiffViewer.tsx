@@ -5,12 +5,11 @@ import {
     Zap, Sparkles, Cpu, CheckCircle2, ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useMemo, memo, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
 
-// ── Stable dynamic import — never re-created ──────────────────────────────────
 const DiffEditor = dynamic(
     () => import("@monaco-editor/react").then((m) => m.DiffEditor),
     { ssr: false, loading: () => <MonacoLoadingPlaceholder /> }
@@ -25,48 +24,34 @@ function MonacoLoadingPlaceholder() {
     );
 }
 
-// ── Stable Monaco options object ──────────────────────────────────────────────
 const MONACO_OPTIONS = {
-    readOnly: false,           // DAY 5: Makes the modified (right) side editable
-    originalEditable: false,   // DAY 5: Explicitly locks the original (left) side
+    readOnly: false,
+    originalEditable: false,
     renderSideBySide: true,
-    minimap: { enabled: false },
+    minimap: { enabled: true }, // Turned back ON so you can see where diffs are in the scrollbar!
     scrollBeyondLastLine: false,
     fontSize: 12,
     lineHeight: 20,
     padding: { top: 12, bottom: 12 },
-    scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
-    diffWordWrap: "on" as const,
+    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+    diffWordWrap: "off" as const, // Turned off wrap for standard IDE feel
     lineNumbers: "on" as const,
-    folding: false,
-    renderLineHighlight: "none" as const,
+    folding: true,
+    renderLineHighlight: "all" as const,
 };
 
-const IDLE_BEFORE = `<!-- Paste a URL above and click Scan.
-
-     AllyFlow will:
-       1. Load the page via Puppeteer
-       2. Strip <script> tags and on* handlers (Snapshot Policy)
-       3. Run axe-core WCAG 2.1 AA audit
-       4. Expand a violation → click "Fix with AI" -->`.trim();
-
-const IDLE_AFTER = `<!-- Fixed HTML will appear here.
-
-     Workflow:
-       1. Fix with AI  →  Gemini or JSDOM generates the fix
-       2. Apply Fix    →  Patches the fix into your master doc
-       3. Download     →  Export allyflow-remediated.html -->`.trim();
+const IDLE_BEFORE = `<!-- Paste a URL above and click Scan. -->`.trim();
+const IDLE_AFTER = `<!-- Fixed HTML will appear here. -->`.trim();
 
 interface DiffViewerProps {
     status: ScanStatus;
-    beforeCode?: string;
+    beforeCode?: string; // This will now be the FULL document
     healResult?: HealResponse | null;
+    activeViolationId?: string | null;
     isHealing?: boolean;
-    appliedResults?: Map<string, HealResponse>;
-    onApplyFix?: (violationId: string, result: HealResponse) => void;
+    onApplyFix?: (violationId: string, fullNewHtml: string) => void;
 }
 
-// ── Memoized inner Monaco renderer ────────────────────────────────────────────
 const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
     original,
     modified,
@@ -78,13 +63,13 @@ const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
 }) {
     return (
         <DiffEditor
-            height="calc(100vh - 150px)"
+            height="100%"
             language="html"
             original={original}
             modified={modified}
             theme="vs-dark"
             options={MONACO_OPTIONS}
-            onMount={onMount} // Wire up the mount function to capture the instance
+            onMount={onMount}
         />
     );
 });
@@ -93,157 +78,90 @@ export default function DiffViewer({
     status,
     beforeCode,
     healResult,
+    activeViolationId,
     isHealing = false,
-    appliedResults = new Map(),
     onApplyFix,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
-
-    // ── DAY 5: The Live Editor Ref ────────────────────────────────────────────
     const modifiedEditorRef = useRef<any>(null);
 
     useEffect(() => { setMounted(true); }, []);
 
-    // Extract the modified right-side editor instance when Monaco boots up
     const handleEditorMount = (editor: any) => {
         modifiedEditorRef.current = editor.getModifiedEditor();
     };
 
     const hasHealResult = !!healResult;
 
-    const isThisApplied = useMemo(
-        () => healResult
-            ? [...appliedResults.values()].some((r) => r.original === healResult.original)
-            : false,
-        [healResult, appliedResults]
-    );
+    // ── THE FULL DOCUMENT DIFF LOGIC ──
+    const originalHtml = beforeCode || IDLE_BEFORE;
+    let modifiedHtml = originalHtml;
 
-    const original = hasHealResult ? healResult!.original : (beforeCode ?? IDLE_BEFORE);
-    const modified = hasHealResult ? healResult!.fixed : IDLE_AFTER;
+    if (hasHealResult && beforeCode) {
+        // Find the exact broken snippet in the full doc and replace it with the fix!
+        modifiedHtml = beforeCode.replace(healResult!.original, healResult!.fixed);
+    } else if (!beforeCode) {
+        modifiedHtml = IDLE_AFTER;
+    }
+
     const showEditor = mounted && (status === "complete" || status === "idle" || hasHealResult);
 
     function handleApplyClick() {
-        if (!healResult || !onApplyFix || isThisApplied) return;
-        const violationId = healResult.original.slice(0, 40);
+        if (!healResult || !onApplyFix || !activeViolationId) return;
 
-        // ── DAY 5: Grab the live text from the editor, not the old state! ──
-        const customFixedText = modifiedEditorRef.current
+        // Grab the full customized document from the right side of the editor
+        const fullNewHtml = modifiedEditorRef.current
             ? modifiedEditorRef.current.getValue()
-            : healResult.fixed;
+            : modifiedHtml;
 
-        const finalResultToApply: HealResponse = {
-            ...healResult,
-            fixed: customFixedText
-        };
-
-        onApplyFix(violationId, finalResultToApply);
+        onApplyFix(activeViolationId, fullNewHtml);
     }
 
     return (
-        <section className="flex flex-col h-full bg-[#1e1e1e] rounded-xl overflow-hidden border border-slate-700/50" aria-label="Code diff viewer">
+        <section className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-700/50" aria-label="Code diff viewer">
             {/* ── Toolbar ── */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#252526] border-b border-slate-700/50 flex-shrink-0">
-                <div className="flex items-center gap-2.5 flex-wrap min-w-0">
-                    <SplitSquareHorizontal className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700/50 flex-shrink-0 min-h-[48px]">
+                <div className="flex items-center gap-3">
+                    <SplitSquareHorizontal className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">
-                        Diff View
+                        Master Document
                     </span>
-
-                    {/* Strategy badge */}
                     {hasHealResult && (
-                        <span className={cn(
-                            "inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border",
-                            healResult!.strategy === "jsdom"
-                                ? "bg-blue-500/10 border-blue-500/25 text-blue-400"
-                                : "bg-violet-500/10 border-violet-500/25 text-violet-400"
-                        )}>
-                            {healResult!.strategy === "jsdom"
-                                ? <><Cpu className="w-2.5 h-2.5" />JSDOM</>
-                                : <><Sparkles className="w-2.5 h-2.5" />Gemini AI</>
-                            }
-                        </span>
-                    )}
-
-                    {/* Applied badge */}
-                    {isThisApplied && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border bg-emerald-500/10 border-emerald-500/25 text-emerald-400">
-                            <CheckCircle2 className="w-2.5 h-2.5" />Applied
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border bg-violet-500/10 border-violet-500/25 text-violet-400">
+                            <Sparkles className="w-2.5 h-2.5" /> Pending Fix
                         </span>
                     )}
                 </div>
 
-                <div className="flex items-center gap-3 flex-shrink-0">
-                    {/* Pane labels */}
+                <div className="flex items-center gap-4">
                     <div className="hidden sm:flex items-center gap-3 text-[11px]">
-                        <span className="flex items-center gap-1 text-slate-500">
-                            <FileCode className="w-3 h-3" />
-                            <span className="text-red-400/70">
-                                {hasHealResult ? "Broken" : (beforeCode ? "Sanitized HTML" : "Before")}
-                            </span>
-                        </span>
+                        <span className="flex items-center gap-1 text-red-400/70"><FileCode className="w-3 h-3" /> Original File</span>
                         <span className="text-slate-600">→</span>
-                        <span className="flex items-center gap-1 text-slate-500">
-                            <Code2 className="w-3 h-3" />
-                            <span className="text-emerald-400/70">
-                                {hasHealResult ? "Fixed (Editable)" : "After"}
-                            </span>
-                        </span>
+                        <span className="flex items-center gap-1 text-emerald-400/70"><Code2 className="w-3 h-3" /> Fixed (Editable)</span>
                     </div>
 
-                    {/* Apply Fix button */}
                     {hasHealResult && onApplyFix && (
                         <button
-                            id="apply-fix-btn"
                             onClick={handleApplyClick}
-                            disabled={isThisApplied}
-                            className={cn(
-                                "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-150",
-                                isThisApplied
-                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400/60 cursor-not-allowed"
-                                    : "bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 shadow-sm shadow-emerald-900/50"
-                            )}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-emerald-600 border border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 transition-all shadow-sm shadow-emerald-900/50"
                         >
-                            <ClipboardCheck className="w-3 h-3" />
-                            {isThisApplied ? "Applied ✓" : "Apply Fix"}
+                            <ClipboardCheck className="w-3.5 h-3.5" />
+                            Apply Fix to Document
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Fix description bar */}
-            {hasHealResult && healResult!.description && (
-                <div className="px-4 py-2 bg-emerald-950/40 border-b border-emerald-900/30 flex-shrink-0">
-                    <p className="text-[11px] text-emerald-400/80 flex items-center gap-1.5 truncate">
-                        <Zap className="w-3 h-3 flex-shrink-0" />
-                        {healResult!.description}
-                    </p>
-                </div>
-            )}
-
             {/* ── Monaco area ── */}
-            <div className="relative flex-1 min-h-0">
+            <div className="relative flex-1 min-h-0 bg-[#1e1e1e]">
                 {isHealing && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/90 backdrop-blur-sm">
-                        <div className="relative w-10 h-10">
-                            <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
-                            <div className="absolute inset-2 rounded-full border border-blue-500/20 animate-pulse" />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-sm font-medium text-slate-300">Generating fix…</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Hybrid Fix Engine running</p>
-                        </div>
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/80 backdrop-blur-sm">
+                        <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+                        <p className="text-sm font-medium text-slate-300">Generating contextual fix…</p>
                     </div>
                 )}
-
-                {status === "scanning" && !isHealing && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[#1e1e1e]/80 backdrop-blur-sm">
-                        <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
-                        <p className="text-sm text-slate-400">Scanning…</p>
-                    </div>
-                )}
-
                 {showEditor ? (
-                    <MemoizedDiffEditor original={original} modified={modified} onMount={handleEditorMount} />
+                    <MemoizedDiffEditor original={originalHtml} modified={modifiedHtml} onMount={handleEditorMount} />
                 ) : (
                     !mounted && <MonacoLoadingPlaceholder />
                 )}
