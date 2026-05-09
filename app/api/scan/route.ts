@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
             sanitizedHtml,
             violations: axeResults.violations as AxeViolation[],
             passes: axeResults.passes as number,
-            seoResults: seoData,
+            seoResults: seoData as SeoCheck[],
             timestamp: new Date().toISOString(),
         };
 
