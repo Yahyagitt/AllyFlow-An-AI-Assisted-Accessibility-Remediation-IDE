@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, memo, useCallback } from "react";
+import { Skeleton } from "@/components/ui/skeleton"; // ── DAY 6: Shadcn Skeleton
 import type { ScanStatus } from "./UrlInputBar";
 import type { AxeViolation, HealStatus, SeoCheck } from "@/lib/scan-types";
 
@@ -170,7 +171,7 @@ const ViolationRow = memo(function ViolationRow({ v, isResolved, isHealing, onFi
     );
 });
 
-// ─── SEO Row (NEW) ────────────────────────────────────────────────────────────
+// ─── SEO Row ────────────────────────────────────────────────────────────
 function SeoRow({ check }: { check: SeoCheck }) {
     const isPass = check.status === "pass";
     return (
@@ -200,7 +201,7 @@ function SeoRow({ check }: { check: SeoCheck }) {
 interface AuditResultsProps {
     status: ScanStatus;
     violations?: AxeViolation[];
-    seoResults?: SeoCheck[]; // Added SEO Prop
+    seoResults?: SeoCheck[];
     healStatus?: HealStatus;
     healingViolationId?: string | null;
     resolvedIds?: Set<string>;
@@ -224,7 +225,6 @@ export default function AuditResults({
         moderate: violations.filter((v) => v.impact === "moderate").length,
         minor: violations.filter((v) => v.impact === "minor" || !v.impact).length,
     };
-    const resolved = resolvedIds.size;
 
     return (
         <section className="flex flex-col h-full overflow-hidden" aria-label="Audit results">
@@ -286,16 +286,19 @@ export default function AuditResults({
                     </div>
                 )}
 
+                {/* ── DAY 6: Shadcn Skeletons ── */}
                 {status === "scanning" && (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 py-8">
-                        <div className="relative w-10 h-10">
-                            <div className="w-10 h-10 rounded-full border-2 border-blue-500/20 animate-spin border-t-blue-500" />
-                            <div className="absolute inset-2 rounded-full border border-violet-500/30 animate-pulse" />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs font-medium text-slate-300">Auditing page…</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">Accessibility & SEO</p>
-                        </div>
+                    <div className="flex flex-col gap-2 pt-2">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <div key={i} className="rounded-lg border border-slate-700/30 bg-slate-800/20 p-3.5 space-y-3">
+                                <div className="flex items-center gap-2.5">
+                                    <Skeleton className="w-3.5 h-3.5 rounded-full bg-slate-700/50 flex-shrink-0" />
+                                    <Skeleton className="h-4 w-16 bg-slate-700/50" />
+                                    <Skeleton className="h-3 w-24 bg-slate-700/50" />
+                                </div>
+                                <Skeleton className="h-3 w-3/4 bg-slate-700/50" />
+                            </div>
+                        ))}
                     </div>
                 )}
 

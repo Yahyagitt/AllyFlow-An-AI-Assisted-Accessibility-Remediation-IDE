@@ -6,9 +6,11 @@ import Sidebar from "@/components/Sidebar";
 import UrlInputBar, { type ScanStatus } from "@/components/UrlInputBar";
 import AuditResults from "@/components/AuditResults";
 import DiffViewer from "@/components/DiffViewer";
+import { toast } from "sonner"; // ── DAY 6: Shadcn Toasts
+import { Progress } from "@/components/ui/progress"; // ── DAY 6: Shadcn Progress
 import {
     Activity, Globe, Download, CheckCircle2, AlertTriangle,
-    X, ArrowRight, ShieldAlert, SearchCheck
+    X, ArrowRight, ShieldAlert, SearchCheck, FileCode2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -17,7 +19,6 @@ import type {
 
 type TabId = "dashboard" | "audit" | "settings";
 
-// ── Memoized stat card to prevent re-renders ───────────────────────────────────
 const StatCard = memo(function StatCard({
     label, value, color, subtitle
 }: { label: string; value: number | string; color: string; subtitle: string }) {
@@ -51,7 +52,8 @@ export default function DashboardPage() {
     const appliedFixCount = resolvedIds.size;
     const canDownload = !!masterHtml && appliedFixCount > 0;
 
-    const currentScore = (() => {
+    // ── SCORES ──
+    const a11yScore = (() => {
         if (!scannedUrl) return 0;
         if (violations.length === 0) return 100;
         let deduction = 0;
@@ -64,9 +66,15 @@ export default function DashboardPage() {
         return Math.max(0, 100 - deduction);
     })();
 
-    const seoFailures = seoResults.filter(s => s.status === "fail").length;
+    const seoScore = (() => {
+        if (!scannedUrl && seoResults.length === 0) return 0;
+        if (seoResults.length === 0) return 100;
+        const passes = seoResults.filter(s => s.status === "pass").length;
+        return Math.round((passes / seoResults.length) * 100);
+    })();
 
-    const handleScan = useCallback(async (url: string) => {
+    // ── NEW: Accepts htmlContent for File Uploads ──
+    const handleScan = useCallback(async (url: string, htmlContent?: string) => {
         setScanStatus("scanning");
         setScannedUrl(url);
         setViolations([]);
@@ -78,11 +86,14 @@ export default function DashboardPage() {
         setMasterHtml(undefined);
         setResolvedIds(new Set());
 
+        // Toast: Start notification
+        toast("Audit Started", { description: htmlContent ? "Analyzing uploaded file..." : `Scanning ${url}...` });
+
         try {
             const res = await fetch("/api/scan", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url }),
+                body: JSON.stringify({ url, htmlContent }), // Pass both!
             });
             if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
 
@@ -92,9 +103,17 @@ export default function DashboardPage() {
             setMasterHtml(data.sanitizedHtml);
             setScanStatus("complete");
             incrementScans();
+
+            // Toast: Success
+            toast.success("Audit Complete!", {
+                description: `Found ${data.violations.length} A11y issues and processed ${data.seoResults?.length || 0} SEO checks.`
+            });
+
         } catch (err) {
-            setScanError(err instanceof Error ? err.message : "Scan failed");
+            const msg = err instanceof Error ? err.message : "Scan failed";
+            setScanError(msg);
             setScanStatus("error");
+            toast.error("Audit Failed", { description: msg });
         }
     }, [incrementScans]);
 
@@ -116,9 +135,11 @@ export default function DashboardPage() {
             setHealResult(data);
             setHealStatus("done");
         } catch (err) {
-            setHealError(err instanceof Error ? err.message : "Fix failed");
+            const msg = err instanceof Error ? err.message : "Fix failed";
+            setHealError(msg);
             setHealStatus("error");
             setHealingViolationId(null);
+            toast.error("AI Generation Failed", { description: msg });
         }
     }, []);
 
@@ -127,6 +148,11 @@ export default function DashboardPage() {
         setResolvedIds((prev) => new Set([...prev, violationId]));
         setHealResult(null);
         setHealingViolationId(null);
+
+        toast.success("Fix Applied!", {
+            icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+            description: "Document has been updated successfully."
+        });
     }, []);
 
     const handleDownload = useCallback(() => {
@@ -140,6 +166,7 @@ export default function DashboardPage() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        toast("File Downloaded", { description: "Your remediated HTML is ready." });
     }, [masterHtml]);
 
     return (
@@ -160,24 +187,20 @@ export default function DashboardPage() {
                 {activeTab === "dashboard" && (
                     <div className="flex-1 overflow-y-auto">
                         <div className="max-w-4xl mx-auto pt-20 px-8 pb-12">
-
-                            {/* Hero Section */}
                             <div className="text-center mb-10 space-y-3">
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-2 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]">
                                     <SearchCheck className="w-8 h-8" />
                                 </div>
                                 <h1 className="text-3xl font-bold tracking-tight text-slate-100">Audit a Website</h1>
                                 <p className="text-slate-400 text-sm max-w-lg mx-auto">
-                                    Run a comprehensive WCAG 2.1 AA accessibility and basic SEO health check. Enter a URL below to generate your report.
+                                    Run a comprehensive WCAG 2.1 AA accessibility and basic SEO health check. Enter a URL or upload an HTML file.
                                 </p>
                             </div>
 
-                            {/* The Scanner */}
                             <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50 shadow-2xl backdrop-blur-sm mb-12">
                                 <UrlInputBar status={scanStatus} onScan={handleScan} />
                             </div>
 
-                            {/* The Report (Only shows when scan is complete) */}
                             {scanStatus === "complete" && (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                                     <div className="flex items-center justify-between mb-6">
@@ -197,21 +220,21 @@ export default function DashboardPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                         <StatCard
                                             label="A11y Score"
-                                            value={currentScore}
-                                            color={currentScore > 80 ? "text-emerald-400" : currentScore > 50 ? "text-yellow-400" : "text-red-400"}
-                                            subtitle="Out of 100 points"
+                                            value={`${a11yScore}%`}
+                                            color={a11yScore > 80 ? "text-emerald-400" : a11yScore > 50 ? "text-yellow-400" : "text-red-400"}
+                                            subtitle="WCAG 2.1 AA Health"
+                                        />
+                                        <StatCard
+                                            label="SEO Score"
+                                            value={`${seoScore}%`}
+                                            color={seoScore === 100 ? "text-emerald-400" : seoScore > 50 ? "text-yellow-400" : "text-red-400"}
+                                            subtitle="Search Engine Health"
                                         />
                                         <StatCard
                                             label="Accessibility Issues"
                                             value={violations.length}
                                             color={violations.length > 0 ? "text-orange-400" : "text-emerald-400"}
-                                            subtitle="WCAG 2.1 AA Violations"
-                                        />
-                                        <StatCard
-                                            label="SEO Failures"
-                                            value={seoFailures}
-                                            color={seoFailures > 0 ? "text-pink-400" : "text-emerald-400"}
-                                            subtitle="Missing Tags/Structure"
+                                            subtitle="Found Violations"
                                         />
                                         <StatCard
                                             label="Scans Today"
@@ -238,7 +261,8 @@ export default function DashboardPage() {
                                     <>
                                         <span className="text-slate-600">/</span>
                                         <span className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-800/50 px-2 py-1 rounded-md border border-slate-700/50">
-                                            <Globe className="w-3 h-3" /> {scannedUrl}
+                                            {scannedUrl === "Uploaded File" ? <FileCode2 className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                                            {scannedUrl}
                                         </span>
                                     </>
                                 )}
@@ -265,6 +289,13 @@ export default function DashboardPage() {
                                 </button>
                             </div>
                         </header>
+
+                        {/* Progress Bar for Loading States */}
+                        <div className="h-[2px] w-full bg-transparent overflow-hidden flex-shrink-0">
+                            {(scanStatus === "scanning" || healStatus === "healing") && (
+                                <Progress value={undefined} className="h-full w-full rounded-none bg-blue-500/10 [&>div]:bg-blue-500 animate-pulse" />
+                            )}
+                        </div>
 
                         {/* Split Panes */}
                         <div className="flex-1 flex flex-row min-h-0">

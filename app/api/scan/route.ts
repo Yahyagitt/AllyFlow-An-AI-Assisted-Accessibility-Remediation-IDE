@@ -4,54 +4,44 @@ import { readFileSync } from "fs";
 import { createRequire } from "module";
 import type { AxeViolation, ScanResponse, SeoCheck } from "@/lib/scan-types";
 
-// Re-export so existing imports from this file continue to work
 export type { AxeViolation, ScanResponse, SeoCheck } from "@/lib/scan-types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Snapshot Policy (AllyFlow rule):
- * Strip all <script> tags and all on* event attributes from the DOM string.
- * This sanitizes the snapshot before rendering in the preview.
- */
 function sanitizeHtml(rawHtml: string): string {
     return rawHtml
-        // Remove all <script>…</script> blocks (including inline scripts)
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-        // Remove all on* event handler attributes (onclick, onload, onerror, etc.)
         .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-        // Remove noscript blocks too for clean snapshot
         .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, "");
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest) {
-    let body: { url?: string };
+    let body: { url?: string; htmlContent?: string };
     try {
         body = await req.json();
     } catch {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { url } = body;
-    if (!url || typeof url !== "string") {
-        return NextResponse.json({ error: "Missing or invalid 'url' field" }, { status: 400 });
+    const { url, htmlContent } = body;
+
+    // We need either a URL or raw HTML to scan
+    if (!url && !htmlContent) {
+        return NextResponse.json({ error: "Missing 'url' or 'htmlContent' field" }, { status: 400 });
     }
 
-    // Basic URL safety check
-    let parsedUrl: URL;
-    try {
-        parsedUrl = new URL(url);
-    } catch {
-        return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
+    // Only validate the URL strictly if we don't have raw HTML content
+    if (url && !htmlContent) {
+        try {
+            const parsedUrl = new URL(url);
+            if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+                return NextResponse.json({ error: "Only http/https URLs are allowed" }, { status: 400 });
+            }
+        } catch {
+            return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
+        }
     }
 
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-        return NextResponse.json({ error: "Only http/https URLs are allowed" }, { status: 400 });
-    }
-
-    // Load axe-core source to inject into the page
     const _require = createRequire(import.meta.url);
     const axeCorePath = _require.resolve("axe-core");
     const axeCoreSource = readFileSync(axeCorePath, "utf-8");
@@ -71,21 +61,22 @@ export async function POST(req: NextRequest) {
         const page = await browser.newPage();
         await page.setViewport({ width: 1280, height: 800 });
 
-        // Navigate to target URL
-        await page.goto(url, {
-            waitUntil: "networkidle2",
-            timeout: 30_000,
-        });
+        // ── Navigation Logic: URL vs Uploaded HTML ──
+        if (htmlContent) {
+            // For uploaded files, set the content directly
+            await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+        } else if (url) {
+            // For live URLs, navigate normally
+            await page.goto(url, { waitUntil: "networkidle2", timeout: 30_000 });
+        }
 
-        // ── Stage 1: Snapshot Policy ─────────────────────────────────────────────
         const rawHtml = await page.content();
         const sanitizedHtml = sanitizeHtml(rawHtml);
 
-        // ── Stage 2: Axe Audit ───────────────────────────────────────────────────
         await page.evaluate(axeCoreSource);
 
         const axeResults = await page.evaluate(async () => {
-            // @ts-expect-error — axe is injected into the page context
+            // @ts-expect-error
             const results = await window.axe.run(document, {
                 runOnly: {
                     type: "tag",
@@ -98,11 +89,8 @@ export async function POST(req: NextRequest) {
             };
         });
 
-        // ── Stage 3: Custom SEO Extraction (NEW FOR DAY 4) ───────────────────────
         const seoData = await page.evaluate(() => {
             const checks = [];
-
-            // 1. Title Check
             const title = document.title || "";
             checks.push({
                 id: "seo-title",
@@ -112,7 +100,6 @@ export async function POST(req: NextRequest) {
                 actualValue: title || "Missing"
             });
 
-            // 2. Meta Description Check
             const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute("content") || "";
             checks.push({
                 id: "seo-meta-desc",
@@ -122,7 +109,6 @@ export async function POST(req: NextRequest) {
                 actualValue: metaDesc || "Missing"
             });
 
-            // 3. H1 Heading Check
             const h1Count = document.querySelectorAll('h1').length;
             checks.push({
                 id: "seo-h1",
@@ -131,16 +117,14 @@ export async function POST(req: NextRequest) {
                 description: "Pages should have exactly one <h1> tag for optimal SEO structure.",
                 actualValue: `Found ${h1Count} <h1> tag(s)`
             });
-
             return checks;
         });
 
         await browser.close();
         browser = undefined;
 
-        // Attach the new seoData to the final response
         const response: ScanResponse = {
-            url,
+            url: url || "uploaded-file.html", // Fallback name for uploads
             sanitizedHtml,
             violations: axeResults.violations as AxeViolation[],
             passes: axeResults.passes as number,
@@ -150,14 +134,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(response);
     } catch (err) {
-        if (browser) {
-            await browser.close().catch(() => { });
-        }
-        console.error("[AllyFlow scan error]", err);
+        if (browser) await browser.close().catch(() => { });
         const message = err instanceof Error ? err.message : "Unknown error";
-        return NextResponse.json(
-            { error: `Scan failed: ${message}` },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: `Scan failed: ${message}` }, { status: 500 });
     }
 }
