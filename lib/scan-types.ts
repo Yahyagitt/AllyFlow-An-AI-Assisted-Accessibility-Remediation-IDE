@@ -17,7 +17,8 @@ export interface AxeViolation {
 
 export interface ScanResponse {
     url: string;
-    sanitizedHtml: string;
+    rawHtml: string;       // NEW: The untouched HTML containing original scripts
+    sanitizedHtml: string; // The safe HTML for the IDE and AI
     violations: AxeViolation[];
     passes: number;
     seoResults: SeoCheck[];

@@ -2,40 +2,100 @@
 <html lang="en">
 
 <head>
-    <!-- SEO VIOLATION 1: Missing <title> tag -->
-    <!-- SEO VIOLATION 2: Missing <meta name="description"> tag -->
-
     <style>
-        /* A11Y VIOLATION 1: Terrible color contrast */
+        body {
+            font-family: system-ui, sans-serif;
+            padding: 40px;
+            background: #f4f4f4;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        /* A11Y FAIL 1: Terrible Contrast (Low Vision) */
         .bad-contrast {
-            color: #cccccc;
+            color: #c9c9c9;
+            /* Light gray text */
             background-color: #ffffff;
-            padding: 20px;
+            /* On white background */
+            padding: 15px;
+            font-size: 14px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* A11Y FAIL 2: Unreachable by Keyboard (Motor Impairment) */
+        .fake-button {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+            margin-bottom: 20px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .cart {
+            font-weight: bold;
+            font-size: 18px;
+            background: #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 20px;
         }
     </style>
 </head>
 
 <body>
-    <!-- SEO VIOLATION 3: Multiple H1 tags (Best practice is exactly ONE per page) -->
-    <h1>Welcome to the Ultimate Test Page</h1>
-    <h1>A Second H1 Tag (Search engines hate this)</h1>
+
+    <div class="header">
+        <h1>TechGadgets Store</h1>
+        <div class="cart">🛒 Cart: <span id="cart-badge">0</span></div>
+    </div>
+
+    <h1>Featured iPhone 15 Pro</h1>
 
     <div class="bad-contrast">
-        This text has terrible color contrast and will trigger a WCAG AA violation.
+        Warning: This item is completely non-refundable. Please read the terms of service carefully before purchasing to
+        avoid unexpected charges.
     </div>
 
-    <!-- A11Y VIOLATION 2: Image missing alt text (Ready for Multimodal AI fixing!) -->
-    <img src="https://images.unsplash.com/photo-1517849845537-4d257902454a" width="500">
+    <img src="https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=500" width="300"
+        style="border-radius: 8px; margin-bottom: 20px;">
+    <br>
 
-    <!-- A11Y VIOLATION 3: Form input missing an associated <label> -->
-    <div style="margin-top: 20px;">
-        <input type="text" placeholder="Search...">
+    <input type="email" placeholder="Enter email for receipt..."
+        style="padding: 10px; width: 250px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ccc;">
+    <br>
+
+    <div class="fake-button" onclick="updateCart()">
+        Add to Cart
     </div>
 
-    <!-- A11Y VIOLATION 4: Button with absolutely no accessible text inside it -->
-    <div style="margin-top: 20px;">
-        <button style="width: 50px; height: 50px;"></button>
-    </div>
+    <script>
+        // This script MUST survive the AI remediation process
+        let cartCount = 0;
+        function updateCart() {
+            cartCount++;
+            const badge = document.getElementById('cart-badge');
+            badge.innerText = cartCount;
+
+            // Visual feedback flash
+            badge.style.color = '#3b82f6';
+            setTimeout(() => {
+                badge.style.color = 'black';
+            }, 300);
+
+            console.log('Successfully added item to cart. Total:', cartCount);
+        }
+    </script>
 
 </body>
 

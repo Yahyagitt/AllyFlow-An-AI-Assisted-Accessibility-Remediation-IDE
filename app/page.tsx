@@ -47,6 +47,7 @@ export default function DashboardPage() {
     const [healError, setHealError] = useState<string | null>(null);
 
     const [masterHtml, setMasterHtml] = useState<string | undefined>(undefined);
+    const [rawHtmlContent, setRawHtmlContent] = useState<string | undefined>(undefined);
     const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
     const appliedFixCount = resolvedIds.size;
@@ -101,8 +102,8 @@ export default function DashboardPage() {
             setViolations(data.violations);
             setSeoResults(data.seoResults || []);
             setMasterHtml(data.sanitizedHtml);
+            setRawHtmlContent(data.rawHtml); // NEW: Save the raw HTML
             setScanStatus("complete");
-            incrementScans();
 
             // Toast: Success
             toast.success("Audit Complete!", {
@@ -157,7 +158,15 @@ export default function DashboardPage() {
 
     const handleDownload = useCallback(() => {
         if (!masterHtml) return;
-        const blob = new Blob([masterHtml], { type: "text/html;charset=utf-8" });
+
+        // ── WAKE UP THE JAVASCRIPT ──
+        // Convert <allyflow-script> back to <script> and data-af-on* back to on*
+        const finalExportHtml = masterHtml
+            .replace(/<allyflow-script\b/gi, "<script")
+            .replace(/<\/allyflow-script>/gi, "</script>")
+            .replace(/\bdata-af-(on[a-z]+)\s*=\s*/gi, "$1=");
+
+        const blob = new Blob([finalExportHtml], { type: "text/html;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -166,7 +175,10 @@ export default function DashboardPage() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        toast("File Downloaded", { description: "Your remediated HTML is ready." });
+
+        toast.success("File Exported!", {
+            description: "Your original JavaScript and functionality have been fully restored."
+        });
     }, [masterHtml]);
 
     return (

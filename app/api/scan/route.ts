@@ -7,11 +7,18 @@ import type { AxeViolation, ScanResponse, SeoCheck } from "@/lib/scan-types";
 export type { AxeViolation, ScanResponse, SeoCheck } from "@/lib/scan-types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+/**
+ * Snapshot Policy (The Hibernation Method):
+ * We don't delete scripts. We rename them so the browser doesn't execute them,
+ * but they stay in the exact correct position in the DOM for the final download.
+ */
 function sanitizeHtml(rawHtml: string): string {
     return rawHtml
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-        .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-        .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, "");
+        // 1. Put script tags to sleep (rename to <allyflow-script>)
+        .replace(/<script\b/gi, "<allyflow-script")
+        .replace(/<\/script>/gi, "</allyflow-script>")
+        // 2. Put inline events to sleep (onclick -> data-af-onclick)
+        .replace(/\b(on[a-z]+)\s*=\s*/gi, "data-af-$1=");
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -124,7 +131,8 @@ export async function POST(req: NextRequest) {
         browser = undefined;
 
         const response: ScanResponse = {
-            url: url || "uploaded-file.html", // Fallback name for uploads
+            url: url || "uploaded-file.html",
+            rawHtml, // NEW: Pass the untouched HTML back to the client
             sanitizedHtml,
             violations: axeResults.violations as AxeViolation[],
             passes: axeResults.passes as number,
@@ -133,6 +141,7 @@ export async function POST(req: NextRequest) {
         };
 
         return NextResponse.json(response);
+
     } catch (err) {
         if (browser) await browser.close().catch(() => { });
         const message = err instanceof Error ? err.message : "Unknown error";
