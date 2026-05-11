@@ -18,37 +18,24 @@
             margin-bottom: 20px;
         }
 
-        /* A11Y FAIL 1: Terrible Contrast (Low Vision) */
-        .bad-contrast {
-            color: #c9c9c9;
-            /* Light gray text */
-            background-color: #ffffff;
-            /* On white background */
-            padding: 15px;
-            font-size: 14px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        /* A11Y FAIL 2: Unreachable by Keyboard (Motor Impairment) */
-        .fake-button {
-            background: #3b82f6;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            display: inline-block;
-            margin-bottom: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
         .cart {
             font-weight: bold;
             font-size: 18px;
             background: #e2e8f0;
             padding: 8px 16px;
             border-radius: 20px;
+        }
+
+        /* Layout styling for the button */
+        .demo-btn {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
@@ -62,7 +49,8 @@
 
     <h1>Featured iPhone 15 Pro</h1>
 
-    <div class="bad-contrast">
+    <div
+        style="color: #c9c9c9; background-color: #ffffff; padding: 15px; font-size: 14px; border-radius: 8px; margin-bottom: 20px;">
         Warning: This item is completely non-refundable. Please read the terms of service carefully before purchasing to
         avoid unexpected charges.
     </div>
@@ -71,28 +59,23 @@
         style="border-radius: 8px; margin-bottom: 20px;">
     <br>
 
-    <input type="email" placeholder="Enter email for receipt..."
+    <input type="email" placeholder="Enter email address for receipt..."
         style="padding: 10px; width: 250px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ccc;">
     <br>
 
-    <div class="fake-button" onclick="updateCart()">
+    <a class="demo-btn" onclick="updateCart()">
         Add to Cart
-    </div>
+    </a>
 
     <script>
-        // This script MUST survive the AI remediation process
+        // HIBERNATION TEST: This must survive!
         let cartCount = 0;
         function updateCart() {
             cartCount++;
             const badge = document.getElementById('cart-badge');
             badge.innerText = cartCount;
-
-            // Visual feedback flash
             badge.style.color = '#3b82f6';
-            setTimeout(() => {
-                badge.style.color = 'black';
-            }, 300);
-
+            setTimeout(() => { badge.style.color = 'black'; }, 300);
             console.log('Successfully added item to cart. Total:', cartCount);
         }
     </script>

@@ -118,9 +118,10 @@ export default function DashboardPage() {
         }
     }, [incrementScans]);
 
-    const handleFix = useCallback(async (violation: AxeViolation, nodeHtml: string) => {
+    // Add nodeId to the signature
+    const handleFix = useCallback(async (violation: AxeViolation, nodeHtml: string, nodeId: string) => {
         setHealStatus("healing");
-        setHealingViolationId(violation.id);
+        setHealingViolationId(nodeId); // Track the specific node
         setHealResult(null);
         setHealError(null);
 
@@ -144,9 +145,14 @@ export default function DashboardPage() {
         }
     }, []);
 
-    const handleApplyFix = useCallback((violationId: string, fullNewHtml: string) => {
+    const handleApplyFix = useCallback((nodeId: string, fullNewHtml: string) => {
         setMasterHtml(fullNewHtml);
-        setResolvedIds((prev) => new Set([...prev, violationId]));
+
+        // Prevent manual edits from causing ghost cards
+        if (nodeId !== "manual-edit") {
+            setResolvedIds((prev) => new Set([...prev, nodeId]));
+        }
+
         setHealResult(null);
         setHealingViolationId(null);
 

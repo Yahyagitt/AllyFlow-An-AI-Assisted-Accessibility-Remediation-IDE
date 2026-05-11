@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         // ── Navigation Logic: URL vs Uploaded HTML ──
         if (htmlContent) {
             // For uploaded files, set the content directly
-            await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+            await page.setContent(htmlContent, { waitUntil: "domcontentloaded", timeout: 60000 });
         } else if (url) {
             // For live URLs, navigate normally
             await page.goto(url, { waitUntil: "networkidle2", timeout: 30_000 });

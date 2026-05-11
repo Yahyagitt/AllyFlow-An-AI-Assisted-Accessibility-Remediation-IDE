@@ -5,7 +5,7 @@ import {
     Zap, Sparkles, Cpu, CheckCircle2, ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
@@ -18,7 +18,7 @@ const DiffEditor = dynamic(
 function MonacoLoadingPlaceholder() {
     return (
         <div className="flex items-center justify-center h-full min-h-[200px] gap-3 text-slate-500 text-sm">
-            <div className="w-4 h-4 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
+            <div className="w-4 h-4 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
             Loading editor…
         </div>
     );
@@ -28,24 +28,25 @@ const MONACO_OPTIONS = {
     readOnly: false,
     originalEditable: false,
     renderSideBySide: true,
-    minimap: { enabled: true }, // Turned back ON so you can see where diffs are in the scrollbar!
+    minimap: { enabled: true },
     scrollBeyondLastLine: false,
-    fontSize: 12,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 22,
     padding: { top: 12, bottom: 12 },
     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-    diffWordWrap: "off" as const, // Turned off wrap for standard IDE feel
+    wordWrap: "on" as const,        // Wraps long lines so no horizontal scrolling!
+    diffWordWrap: "on" as const,    // Wraps text inside the split view
     lineNumbers: "on" as const,
     folding: true,
     renderLineHighlight: "all" as const,
 };
 
-const IDLE_BEFORE = `<!-- Paste a URL above and click Scan. -->`.trim();
-const IDLE_AFTER = `<!-- Fixed HTML will appear here. -->`.trim();
+const IDLE_BEFORE = ``.trim();
+const IDLE_AFTER = ``.trim();
 
 interface DiffViewerProps {
     status: ScanStatus;
-    beforeCode?: string; // This will now be the FULL document
+    beforeCode?: string;
     healResult?: HealResponse | null;
     activeViolationId?: string | null;
     isHealing?: boolean;
@@ -85,11 +86,32 @@ export default function DiffViewer({
     const [mounted, setMounted] = useState(false);
     const modifiedEditorRef = useRef<any>(null);
 
+    // NEW: Track if the user typed manually!
+    const [hasManualEdits, setHasManualEdits] = useState(false);
+
     useEffect(() => { setMounted(true); }, []);
 
-    const handleEditorMount = (editor: any) => {
-        modifiedEditorRef.current = editor.getModifiedEditor();
-    };
+    // Reset manual edit state if the master document changes or AI fires
+    useEffect(() => {
+        setHasManualEdits(false);
+    }, [beforeCode, healResult]);
+
+    // useCallback ensures Monaco doesn't lose your manual keystrokes
+    const handleEditorMount = useCallback((editor: any) => {
+        if (editor) {
+            const modified = editor.getModifiedEditor();
+            modifiedEditorRef.current = modified;
+
+            // Force wrap on the left pane after a 100ms delay to override Monaco's default
+            setTimeout(() => {
+                editor.getOriginalEditor().updateOptions({ wordWrap: "on" });
+            }, 100);
+
+            modified.onDidChangeModelContent(() => {
+                setHasManualEdits(true);
+            });
+        }
+    }, []);
 
     const hasHealResult = !!healResult;
 
@@ -106,15 +128,20 @@ export default function DiffViewer({
 
     const showEditor = mounted && (status === "complete" || status === "idle" || hasHealResult);
 
-    function handleApplyClick() {
-        if (!healResult || !onApplyFix || !activeViolationId) return;
+    // Show button if AI generated a fix OR user typed manually
+    const showApplyButton = hasHealResult || hasManualEdits;
 
-        // Grab the full customized document from the right side of the editor
+    function handleApplyClick() {
+        if (!onApplyFix) return;
+
+        // Grabs exactly what is in the right pane, including your manual edits
         const fullNewHtml = modifiedEditorRef.current
             ? modifiedEditorRef.current.getValue()
             : modifiedHtml;
 
-        onApplyFix(activeViolationId, fullNewHtml);
+        // Pass "manual-edit" if they just typed without clicking an AI fix first
+        onApplyFix(activeViolationId || "manual-edit", fullNewHtml);
+        setHasManualEdits(false); // Hide the button after saving
     }
 
     return (
@@ -140,8 +167,9 @@ export default function DiffViewer({
                         <span className="flex items-center gap-1 text-emerald-400/70"><Code2 className="w-3 h-3" /> Fixed (Editable)</span>
                     </div>
 
-                    {hasHealResult && onApplyFix && (
+                    {showApplyButton && onApplyFix && (
                         <button
+                            type="button"
                             onClick={handleApplyClick}
                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-emerald-600 border border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 transition-all shadow-sm shadow-emerald-900/50"
                         >

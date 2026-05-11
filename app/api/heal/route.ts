@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { applyStructuralFix, isStructuralViolation } from "@/lib/fix-engine";
 import type { AxeViolation } from "@/lib/scan-types";
 
 export interface HealRequest {
     violation: AxeViolation;
-    nodeHtml: string; // ONLY the specific broken snippet from axe-core (violation.nodes[n].html)
+    nodeHtml: string;
 }
 
 export interface HealResponse {
@@ -15,63 +14,31 @@ export interface HealResponse {
     description: string;
 }
 
-// ─── Image Fetcher for Multimodal AI ──────────────────────────────────────────
-
 async function fetchImageAsBase64(url: string) {
     try {
-        // We can only fetch absolute URLs (starting with http)
-        if (!url.startsWith('http')) {
-            console.warn(`[AllyFlow] Cannot fetch relative image URL: ${url}`);
-            return null;
-        }
-
+        if (!url.startsWith('http')) return null;
         const response = await fetch(url);
         if (!response.ok) return null;
-
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const mimeType = response.headers.get('content-type') || 'image/jpeg';
-
-        return {
-            inlineData: {
-                data: buffer.toString('base64'),
-                mimeType
-            }
-        };
+        return { inlineData: { data: buffer.toString('base64'), mimeType } };
     } catch (e) {
-        console.warn(`[AllyFlow] Multimodal fetch failed for: ${url}`);
-        return null; // If fetch fails, we gracefully degrade to text-only mode
+        return null;
     }
 }
 
-// ─── Gemini semantic fix ──────────────────────────────────────────────────────
-
-// app/api/heal/route.ts
-
-// ─── Gemini semantic fix (UPGRADED WITH FALLBACK) ─────────────────────────────
-
-
-
-// ─── Gemini semantic fix (Day 2: Multimodal + Fallback) ──────────────────────
-
-async function applyGeminifix(
-    violation: AxeViolation,
-    nodeHtml: string
-): Promise<HealResponse> {
+async function applyGeminifix(violation: AxeViolation, nodeHtml: string): Promise<HealResponse> {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not set in environment variables.");
-    }
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
 
     const genAI = new GoogleGenerativeAI(apiKey);
-
     const MAX_SNIPPET_CHARS = 500;
-    const safeSnippet =
-        nodeHtml.length > MAX_SNIPPET_CHARS
-            ? nodeHtml.slice(0, MAX_SNIPPET_CHARS) + "\n...[content truncated]..."
-            : nodeHtml;
+    const safeSnippet = nodeHtml.length > MAX_SNIPPET_CHARS ? nodeHtml.slice(0, MAX_SNIPPET_CHARS) + "\n...[content truncated]..." : nodeHtml;
 
-    const promptText = `You are an expert web accessibility engineer fixing WCAG 2.1 AA violations.
+    // ── NEW: AGGRESSIVE, STRICT PROMPT ──
+    const promptText = `You are a ruthless, expert web accessibility engineer fixing WCAG 2.1 AA violations. 
+You MUST MODIFY the HTML to fix the issue. NEVER RETURN THE EXACT SAME CODE.
 
 VIOLATION
 Rule: ${violation.id}
@@ -80,67 +47,52 @@ Description: ${violation.help}
 BROKEN HTML SNIPPET
 ${safeSnippet}
 
-TASK
-Fix ONLY the broken HTML snippet above to resolve the accessibility violation.
+TASK & STRICT OUTPUT RULES:
+1. Fix the broken HTML snippet above to resolve the violation. 
+2. YOU MUST CHANGE THE CODE. If it is a contrast issue, change the CSS hex codes to pass WCAG 4.5:1 (e.g., #333333 or #000000).
+3. If it is a fake button (like an <a> without href or a <div>), YOU MUST add href="#", role="button", and tabindex="0", or change the tag entirely to <button>.
+4. If adding an aria-label or alt text, make it highly descriptive of the element's actual purpose (e.g., "Email Address" not "Content region").
+5. Output ONLY the corrected raw HTML snippet. No markdown, no backticks, no explanations.
+6. MUST be valid HTML.`;
 
-STRICT OUTPUT RULES:
-- Output ONLY the corrected raw HTML snippet — nothing else
-- No markdown, no explanatory text
-- If an image is provided, write a highly descriptive, visually accurate 'alt' attribute based on what you actually see in the image.
-- Output must be valid HTML that drops in as a direct replacement`;
-
-    // ── Day 2: Image Extraction Logic ─────────────────────────────────────────
     let imagePart = null;
-
-    // If the violation is related to image alt text, look for an image source
     if (violation.id === 'image-alt') {
         const srcMatch = nodeHtml.match(/src=["'](.*?)["']/);
         if (srcMatch && srcMatch[1]) {
-            console.log(`[AllyFlow] Image detected. Fetching for multimodal analysis: ${srcMatch[1]}`);
             imagePart = await fetchImageAsBase64(srcMatch[1]);
         }
     }
 
-    // Bundle the prompt. If we have an image, send both text AND image!
     const contentParts = imagePart ? [promptText, imagePart] : [promptText];
 
     try {
-        console.log(`[AllyFlow] Attempting gemini-2.5-flash for rule: ${violation.id}`);
         const primaryModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await primaryModel.generateContent(contentParts);
-        const fixedHtml = result.response.text().trim();
+        // Clean markdown backticks just in case the AI ignores instructions
+        const fixedHtml = result.response.text().replace(/^```html\s*|^```\s*/g, '').replace(/```$/g, '').trim();
 
         return {
             original: nodeHtml,
             fixed: fixedHtml,
             strategy: "gemini",
-            description: `Semantic multimodal fix generated by Gemini 2.5 Flash for rule: ${violation.id}`,
+            description: `Aggressive semantic fix generated by Gemini 2.5 Flash for rule: ${violation.id}`,
         };
-
     } catch (error: any) {
         if (error.status === 503 || error.status === 429) {
-            console.warn(`[AllyFlow] Flash model busy (Status ${error.status}). Falling back to flash-lite...`);
             await new Promise(resolve => setTimeout(resolve, 500));
-
             try {
                 const fallbackModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
                 const fallbackResult = await fallbackModel.generateContent(contentParts);
-                const fallbackFixedHtml = fallbackResult.response.text().trim();
+                const fallbackFixedHtml = fallbackResult.response.text().replace(/^```html\s*|^```\s*/g, '').replace(/```$/g, '').trim();
 
-                return {
-                    original: nodeHtml,
-                    fixed: fallbackFixedHtml,
-                    strategy: "gemini",
-                    description: `Semantic multimodal fix generated by Gemini 2.5 Flash-Lite (Fallback) for rule: ${violation.id}`,
-                };
+                return { original: nodeHtml, fixed: fallbackFixedHtml, strategy: "gemini", description: `Fallback fix for: ${violation.id}` };
             } catch (fallbackError: any) {
-                throw new Error("AI models are currently overloaded. Please try again in a few seconds.");
+                throw new Error("AI models are currently overloaded.");
             }
         }
         throw error;
     }
 }
-// ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
     let body: Partial<HealRequest>;
@@ -151,46 +103,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { violation, nodeHtml } = body;
-
-    if (!violation || !nodeHtml) {
-        return NextResponse.json(
-            { error: "Missing required fields: violation, nodeHtml" },
-            { status: 400 }
-        );
-    }
+    if (!violation || !nodeHtml) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 
     try {
-        // ── Hybrid Fix Engine Decision ────────────────────────────────────────────
-        // Check if this violation has a deterministic structural fix first.
-        // Only call Gemini AI for violations requiring semantic text generation.
-
-        const hasDeterministicFix = isStructuralViolation(violation.id);
-
-        if (hasDeterministicFix) {
-            const jsdomResult = applyStructuralFix(violation.id, nodeHtml);
-            if (jsdomResult) {
-                // Deterministic fix succeeded
-                const response: HealResponse = {
-                    original: nodeHtml,
-                    fixed: jsdomResult.fixedHtml,
-                    strategy: "jsdom",
-                    description: jsdomResult.description,
-                };
-                return NextResponse.json(response);
-            }
-            // jsdomResult was null → fixer explicitly delegated to Gemini (e.g. image-alt)
-        }
-
-        // ── Gemini AI semantic fix ────────────────────────────────────────────────
+        // ── NEW: BYPASS JSDOM FIXER ──
+        // We are forcing everything to Gemini so it can make smart, contextual decisions
         const geminiResult = await applyGeminifix(violation, nodeHtml);
         return NextResponse.json(geminiResult);
-
     } catch (err) {
-        console.error("[AllyFlow heal error]", err);
         const message = err instanceof Error ? err.message : "Unknown error";
-        return NextResponse.json(
-            { error: `Heal failed: ${message}` },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: `Heal failed: ${message}` }, { status: 500 });
     }
 }
