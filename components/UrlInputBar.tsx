@@ -67,7 +67,7 @@ export default function UrlInputBar({ status, onScan }: UrlInputBarProps) {
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <input
                         id="url-input"
-                        type="url"
+                        type="text"
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
                         placeholder="https://example.com"

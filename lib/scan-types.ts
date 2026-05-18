@@ -17,7 +17,7 @@ export interface AxeViolation {
 
 export interface ScanResponse {
     url: string;
-    rawHtml: string;       // NEW: The untouched HTML containing original scripts
+    rawHtml: string;       // The untouched HTML containing original scripts
     sanitizedHtml: string; // The safe HTML for the IDE and AI
     violations: AxeViolation[];
     passes: number;
@@ -28,8 +28,15 @@ export interface ScanResponse {
 export interface HealResponse {
     original: string;
     fixed: string;
-    strategy: "jsdom" | "gemini";
+    strategy: "gemini" | "heuristic-fallback";
     description: string;
+    /**
+     * When "html-tag-regex", the client patches the <html> opening tag
+     * by adding/replacing the lang attribute rather than doing a literal
+     * string replacement (which fails because puppeteer mutates the tag).
+     * `fixed` holds the desired lang value (e.g. "en").
+     */
+    patchType?: "html-tag-regex";
 }
 
 export interface SeoCheck {

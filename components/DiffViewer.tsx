@@ -1,11 +1,9 @@
 "use client";
-
 import {
     Code2, FileCode, SplitSquareHorizontal,
-    Zap, Sparkles, Cpu, CheckCircle2, ClipboardCheck,
+    Sparkles, ClipboardCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef, memo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
@@ -24,21 +22,15 @@ function MonacoLoadingPlaceholder() {
     );
 }
 
-const MONACO_OPTIONS = {
+const MONACO_OPTIONS: any = {
     readOnly: false,
     originalEditable: false,
     renderSideBySide: true,
-    minimap: { enabled: true },
+    minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 13,
-    lineHeight: 22,
-    padding: { top: 12, bottom: 12 },
-    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-    wordWrap: "on" as const,        // Wraps long lines so no horizontal scrolling!
-    diffWordWrap: "on" as const,    // Wraps text inside the split view
-    lineNumbers: "on" as const,
-    folding: true,
-    renderLineHighlight: "all" as const,
+    wordWrap: "on",
+    diffWordWrap: "on",
 };
 
 const IDLE_BEFORE = ``.trim();
@@ -53,28 +45,6 @@ interface DiffViewerProps {
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
 }
 
-const MemoizedDiffEditor = memo(function MemoizedDiffEditor({
-    original,
-    modified,
-    onMount,
-}: {
-    original: string;
-    modified: string;
-    onMount: (editor: any) => void;
-}) {
-    return (
-        <DiffEditor
-            height="100%"
-            language="html"
-            original={original}
-            modified={modified}
-            theme="vs-dark"
-            options={MONACO_OPTIONS}
-            onMount={onMount}
-        />
-    );
-});
-
 export default function DiffViewer({
     status,
     beforeCode,
@@ -84,69 +54,89 @@ export default function DiffViewer({
     onApplyFix,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
-    const modifiedEditorRef = useRef<any>(null);
-
-    // NEW: Track if the user typed manually!
+    // This ref now directly holds the Monaco DiffEditor instance — no memo barrier.
+    const diffEditorRef = useRef<any>(null);
     const [hasManualEdits, setHasManualEdits] = useState(false);
 
     useEffect(() => { setMounted(true); }, []);
 
-    // Reset manual edit state if the master document changes or AI fires
+    // Reset manual-edit flag whenever the underlying document or fix changes
     useEffect(() => {
         setHasManualEdits(false);
     }, [beforeCode, healResult]);
 
-    // useCallback ensures Monaco doesn't lose your manual keystrokes
+    // ── onMount: capture the diff editor and wire up change detection ──────
     const handleEditorMount = useCallback((editor: any) => {
-        if (editor) {
-            const modified = editor.getModifiedEditor();
-            modifiedEditorRef.current = modified;
+        if (!editor) return;
+        diffEditorRef.current = editor;
 
-            // Force wrap on the left pane after a 100ms delay to override Monaco's default
-            setTimeout(() => {
-                editor.getOriginalEditor().updateOptions({ wordWrap: "on" });
-            }, 100);
-
+        const original = editor.getOriginalEditor();
+        const modified = editor.getModifiedEditor();
+        if (original) original.updateOptions({ wordWrap: "on" });
+        if (modified) {
+            modified.updateOptions({ wordWrap: "on" });
+            // Mark that the user has made manual edits
             modified.onDidChangeModelContent(() => {
                 setHasManualEdits(true);
             });
         }
     }, []);
 
+    // ── Compute what to show in each pane ──────────────────────────────────
     const hasHealResult = !!healResult;
-
-    // ── THE FULL DOCUMENT DIFF LOGIC ──
     const originalHtml = beforeCode || IDLE_BEFORE;
     let modifiedHtml = originalHtml;
 
     if (hasHealResult && beforeCode) {
-        // Find the exact broken snippet in the full doc and replace it with the fix!
-        modifiedHtml = beforeCode.replace(healResult!.original, healResult!.fixed);
+        // ── SPECIAL CASE: html-tag-regex patch (for html-has-lang etc.) ──
+        if (healResult!.patchType === "html-tag-regex") {
+            const langValue = healResult!.fixed; // e.g. "en"
+            modifiedHtml = beforeCode.replace(
+                /<html\b([^>]*?)(?:\s+lang=["'][^"']*["'])?([^>]*?)>/i,
+                (_, before, after) => `<html${before} lang="${langValue}"${after}>`
+            );
+        } else {
+            // Primary replace: literal match (works when whitespace is exact)
+            let replaced = beforeCode.replace(healResult!.original, healResult!.fixed);
+
+            // Fallback: collapse whitespace differences
+            if (replaced === beforeCode && healResult!.original !== healResult!.fixed) {
+                const escaped = healResult!.original
+                    .trim()
+                    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                    .replace(/\s+/g, "\\s+");
+                try {
+                    replaced = beforeCode.replace(new RegExp(escaped, "s"), healResult!.fixed);
+                } catch {
+                    // invalid regex — keep original
+                }
+            }
+
+            modifiedHtml = replaced;
+        }
     } else if (!beforeCode) {
         modifiedHtml = IDLE_AFTER;
     }
 
     const showEditor = mounted && (status === "complete" || status === "idle" || hasHealResult);
-
-    // Show button if AI generated a fix OR user typed manually
     const showApplyButton = hasHealResult || hasManualEdits;
 
+    // ── Apply Fix: read current editor content (captures manual edits too) ──
     function handleApplyClick() {
         if (!onApplyFix) return;
 
-        // Grabs exactly what is in the right pane, including your manual edits
-        const fullNewHtml = modifiedEditorRef.current
-            ? modifiedEditorRef.current.getValue()
-            : modifiedHtml;
+        // getValue() from the MODIFIED pane — picks up any user edits on top of the AI fix
+        const editorValue = diffEditorRef.current
+            ?.getModifiedEditor()
+            ?.getValue();
 
-        // Pass "manual-edit" if they just typed without clicking an AI fix first
+        const fullNewHtml = editorValue ?? modifiedHtml;
         onApplyFix(activeViolationId || "manual-edit", fullNewHtml);
-        setHasManualEdits(false); // Hide the button after saving
+        setHasManualEdits(false);
     }
 
     return (
         <section className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-700/50" aria-label="Code diff viewer">
-            {/* ── Toolbar ── */}
             <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700/50 flex-shrink-0 min-h-[48px]">
                 <div className="flex items-center gap-3">
                     <SplitSquareHorizontal className="w-4 h-4 text-slate-400" />
@@ -180,7 +170,6 @@ export default function DiffViewer({
                 </div>
             </div>
 
-            {/* ── Monaco area ── */}
             <div className="relative flex-1 min-h-0 bg-[#1e1e1e]">
                 {isHealing && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/80 backdrop-blur-sm">
@@ -189,7 +178,15 @@ export default function DiffViewer({
                     </div>
                 )}
                 {showEditor ? (
-                    <MemoizedDiffEditor original={originalHtml} modified={modifiedHtml} onMount={handleEditorMount} />
+                    <DiffEditor
+                        height="100%"
+                        language="html"
+                        original={originalHtml}
+                        modified={modifiedHtml}
+                        theme="vs-dark"
+                        options={MONACO_OPTIONS}
+                        onMount={handleEditorMount}
+                    />
                 ) : (
                     !mounted && <MonacoLoadingPlaceholder />
                 )}

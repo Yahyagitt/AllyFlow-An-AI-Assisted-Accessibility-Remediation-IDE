@@ -104,6 +104,7 @@ export default function DashboardPage() {
             setMasterHtml(data.sanitizedHtml);
             setRawHtmlContent(data.rawHtml); // NEW: Save the raw HTML
             setScanStatus("complete");
+            incrementScans();
 
             // Toast: Success
             toast.success("Audit Complete!", {
@@ -125,15 +126,54 @@ export default function DashboardPage() {
         setHealResult(null);
         setHealError(null);
 
+        // Normalize onclick → data-af-onclick so healResult.original matches
+        // the sanitized masterHtml exactly, enabling reliable string replacement.
+        const sanitizedNodeHtml = nodeHtml.replace(/\b(on[a-z]+)\s*=/gi, "data-af-$1=");
+
         try {
             const res = await fetch("/api/heal", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ violation, nodeHtml }),
+                body: JSON.stringify({ violation, nodeHtml: sanitizedNodeHtml }),
             });
             if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`);
 
-            const data: HealResponse = await res.json();
+            let data: HealResponse = await res.json();
+
+            // ── html-lang special case ────────────────────────────────────
+            // The heal route returns a sentinel because puppeteer mutates the
+            // <html> tag and literal replacement always fails. We resolve it
+            // here using the actual masterHtml so DiffViewer gets a real diff.
+            if (data.patchType === "html-tag-regex") {
+                const langValue = data.fixed; // e.g. "en"
+                setMasterHtml((current) => {
+                    if (!current) return current;
+                    // Find the actual <html ...> opening tag in masterHtml
+                    const htmlTagMatch = current.match(/<html\b[^>]*>/i);
+                    if (!htmlTagMatch) return current;
+                    const originalTag = htmlTagMatch[0];
+                    let fixedTag: string;
+                    if (/\blang=/i.test(originalTag)) {
+                        // Replace existing (invalid) lang value
+                        fixedTag = originalTag.replace(/\blang=["'][^"']*["']/i, `lang="${langValue}"`);
+                    } else {
+                        // Inject lang= as the first attribute after <html
+                        fixedTag = originalTag.replace(/^<html\b/i, `<html lang="${langValue}"`);
+                    }
+                    // Resolve the sentinel so DiffViewer shows the real diff
+                    data = {
+                        ...data,
+                        original: originalTag,
+                        fixed: fixedTag,
+                        patchType: undefined,
+                    };
+                    // Return unchanged — we only needed masterHtml to resolve the tag
+                    return current;
+                });
+                // Give setState a tick to run before we set healResult
+                await new Promise((r) => setTimeout(r, 0));
+            }
+
             setHealResult(data);
             setHealStatus("done");
         } catch (err) {
@@ -170,7 +210,7 @@ export default function DashboardPage() {
         const finalExportHtml = masterHtml
             .replace(/<allyflow-script\b/gi, "<script")
             .replace(/<\/allyflow-script>/gi, "</script>")
-            .replace(/\bdata-af-(on[a-z]+)\s*=\s*/gi, "$1=");
+            .replace(/\bdata-af-(on[a-z]+)(=)/gi, "$1$2");
 
         const blob = new Blob([finalExportHtml], { type: "text/html;charset=utf-8" });
         const url = URL.createObjectURL(blob);

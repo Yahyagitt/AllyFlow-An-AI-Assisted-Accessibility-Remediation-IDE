@@ -6,9 +6,10 @@ import {
     Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback } from "react";;
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ScanStatus } from "./UrlInputBar";
+// import { useDailyScans } from '@/lib/useDailyScans';
 import type { AxeViolation, HealStatus, SeoCheck } from "@/lib/scan-types";
 
 type Impact = "critical" | "serious" | "moderate" | "minor";
@@ -150,6 +151,7 @@ export default function AuditResults({
     healingViolationId = null, resolvedIds = new Set<string>(), onFix,
 }: AuditResultsProps) {
     const [view, setView] = useState<"a11y" | "seo">("a11y");
+
 
     const counts = {
         critical: violations.filter((v) => v.impact === "critical").length,

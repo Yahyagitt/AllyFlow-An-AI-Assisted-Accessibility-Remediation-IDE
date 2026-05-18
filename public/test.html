@@ -59,7 +59,7 @@
         style="border-radius: 8px; margin-bottom: 20px;">
     <br>
 
-    <input type="email" placeholder="Enter email address for receipt..."
+    <input type="email" placeholder="Content region"
         style="padding: 10px; width: 250px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ccc;">
     <br>
 
@@ -79,6 +79,14 @@
             console.log('Successfully added item to cart. Total:', cartCount);
         }
     </script>
+
+    <!-- A11Y FAIL: THE MOTOR IMPAIRMENT DEMO -->
+    <br><br>
+    <div role="button" aria-pressed="yes"
+        style="background-color: #000000; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; font-weight: bold; cursor: pointer;"
+        onclick="alert('Proceeding to checkout...')">
+        Proceed to Checkout
+    </div>
 
 </body>
 
