@@ -21,6 +21,93 @@ function sanitizeHtml(rawHtml: string): string {
         .replace(/\b(on[a-z]+)\s*=\s*/gi, "data-af-$1=");
 }
 
+// ── Synthetic violation injector: catches patterns axe misses ────────────────
+function injectSyntheticViolations(
+    sanitizedHtml: string,
+    existingViolations: AxeViolation[]
+): AxeViolation[] {
+    const synthetic: AxeViolation[] = [];
+    const existingIds = new Set(existingViolations.map(v => v.id));
+
+    const makeViolation = (
+        id: string, impact: string, help: string,
+        description: string, nodes: { html: string; target: string[] }[]
+    ): AxeViolation => ({
+        id, impact: impact as AxeViolation["impact"], help, description,
+        helpUrl: `https://dequeuniversity.com/rules/axe/4.7/${id}`,
+        tags: ["wcag2a", "wcag2aa"],
+        nodes: nodes.map(n => ({ html: n.html, failureSummary: description, target: n.target }))
+    });
+
+    // SYNTHETIC 1: image-alt-filename
+    if (!existingIds.has("image-alt-filename")) {
+        const imgRegex = /<img\b[^>]*\balt=["']([^"']+)["'][^>]*>/gi;
+        const nodes: { html: string; target: string[] }[] = [];
+        let m: RegExpExecArray | null;
+        while ((m = imgRegex.exec(sanitizedHtml)) !== null) {
+            const altVal = m[1];
+            const isFilePath = /^\//.test(altVal) ||
+                /\.(svg|png|jpg|jpeg|gif|webp|ico|bmp)$/i.test(altVal) ||
+                /^https?:\/\//.test(altVal) ||
+                /^data:/.test(altVal) ||
+                ["image", "photo", "picture", "graphic", "icon", "logo", "img", "thumbnail"]
+                    .includes(altVal.toLowerCase().trim()) ||
+                altVal.trim().length === 1;
+            if (isFilePath) nodes.push({ html: m[0], target: ["img"] });
+        }
+        if (nodes.length > 0) synthetic.push(makeViolation(
+            "image-alt-filename", "serious",
+            "Image alt text is a file path or generic word, not a description",
+            "Alt text that is a filename, URL, or generic term like 'image' does not convey meaning to screen reader users.",
+            nodes
+        ));
+    }
+
+    // SYNTHETIC 2: keyboard-unreachable (naturally focusable + tabindex="-1")
+    if (!existingIds.has("keyboard-unreachable")) {
+        const tabNegRegex = /<(?:a|button)\b[^>]*\btabindex=["']-1["'][^>]*(?:href=["'][^"']*["'][^>]*)?>/gi;
+        const nodes: { html: string; target: string[] }[] = [];
+        let m: RegExpExecArray | null;
+        while ((m = tabNegRegex.exec(sanitizedHtml)) !== null) {
+            if (/\bhref=["'][^"']+["']/i.test(m[0]) || /^<button/i.test(m[0]))
+                nodes.push({ html: m[0], target: ["a[tabindex='-1']"] });
+        }
+        if (nodes.length > 0) synthetic.push(makeViolation(
+            "keyboard-unreachable", "serious",
+            "Focusable element removed from keyboard tab order",
+            "tabindex='-1' on a naturally focusable element makes it unreachable by keyboard navigation.",
+            nodes
+        ));
+    }
+
+    // SYNTHETIC 3: aria-role-application-misuse
+    if (!existingIds.has("aria-role-application-misuse")) {
+        const roleAppRegex = /<(?:div|span|section|p|li|article)\b[^>]*\brole=["']application["'][^>]*>/gi;
+        const nodes: { html: string; target: string[] }[] = [];
+        let m: RegExpExecArray | null;
+        while ((m = roleAppRegex.exec(sanitizedHtml)) !== null) {
+            nodes.push({ html: m[0], target: ["[role=application]"] });
+        }
+        if (nodes.length > 0) {
+            // Batch all nodes into ONE violation to avoid duplicate-id React key crashes.
+            // Use the more informative duplicate-role message if any node has two role= attrs.
+            const anyHasDuplicateRole = nodes.some(
+                node => (node.html.match(/\brole=/gi) ?? []).length > 1
+            );
+            synthetic.push(makeViolation(
+                "aria-role-application-misuse", "serious",
+                anyHasDuplicateRole
+                    ? "role='application' and a second role= attribute detected on the same element. Remove role='application' and the duplicate — keep only the correct single role."
+                    : "role='application' should only be used on true widget containers (e.g. a drawing canvas), never on generic div/span elements.",
+                "role='application' instructs AT to disable standard reading commands. Using it on generic elements breaks screen reader navigation.",
+                nodes
+            ));
+        }
+    }
+
+    return [...existingViolations, ...synthetic];
+}
+
 // ─── Route Handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
     let body: { url?: string; htmlContent?: string };
@@ -130,11 +217,14 @@ export async function POST(req: NextRequest) {
         await browser.close();
         browser = undefined;
 
+        const axeViolations = axeResults.violations as AxeViolation[];
+        const enrichedViolations = injectSyntheticViolations(sanitizedHtml, axeViolations);
+
         const response: ScanResponse = {
             url: url || "uploaded-file.html",
-            rawHtml, // NEW: Pass the untouched HTML back to the client
+            rawHtml,
             sanitizedHtml,
-            violations: axeResults.violations as AxeViolation[],
+            violations: enrichedViolations,
             passes: axeResults.passes as number,
             seoResults: seoData as SeoCheck[],
             timestamp: new Date().toISOString(),

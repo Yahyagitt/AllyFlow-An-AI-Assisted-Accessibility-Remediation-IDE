@@ -6,11 +6,12 @@ import {
     Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, memo, useCallback } from "react";;
+import { useState, memo, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ScanStatus } from "./UrlInputBar";
-// import { useDailyScans } from '@/lib/useDailyScans';
 import type { AxeViolation, HealStatus, SeoCheck } from "@/lib/scan-types";
+import type { BestPracticeViolation } from "@/lib/best-practices-types";
+import BestPracticesPanel from "@/components/BestPracticesPanel";
 
 type Impact = "critical" | "serious" | "moderate" | "minor";
 
@@ -144,13 +145,22 @@ interface AuditResultsProps {
     healingViolationId?: string | null;
     resolvedIds?: Set<string>;
     onFix: (violation: AxeViolation, nodeHtml: string, nodeId: string) => Promise<void>;
+    // Best Practices props
+    bpViolations?: BestPracticeViolation[];
+    bpLoading?: boolean;
+    bpHealingId?: string | null;
+    bpResolvedIds?: Set<string>;
+    onBpFix?: (violation: BestPracticeViolation, nodeHtml: string, nodeId: string) => void;
 }
 
 export default function AuditResults({
     status, violations = [], seoResults = [], healStatus = "idle",
     healingViolationId = null, resolvedIds = new Set<string>(), onFix,
+    bpViolations = [], bpLoading = false, bpHealingId = null,
+    bpResolvedIds = new Set<string>(),
+    onBpFix,
 }: AuditResultsProps) {
-    const [view, setView] = useState<"a11y" | "seo">("a11y");
+    const [view, setView] = useState<"a11y" | "seo" | "bp">("a11y");
 
 
     const counts = {
@@ -168,6 +178,7 @@ export default function AuditResults({
                     <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700/50">
                         <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{violations.length}</span></button>
                         <button onClick={() => setView("seo")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "seo" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>SEO Health<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{seoResults.filter(s => s.status === "fail").length}</span></button>
+                        <button onClick={() => setView("bp")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "bp" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Best Practices<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{bpViolations.reduce((s, v) => s + v.nodes.length, 0)}</span></button>
                     </div>
                 ) : <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Scan Results</span>}
                 {healStatus === "healing" && view === "a11y" && <span className="flex items-center gap-1 text-[11px] text-violet-400 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" />Healing…</span>}
@@ -228,6 +239,16 @@ export default function AuditResults({
                 {status === "complete" && view === "seo" && seoResults.length > 0 && seoResults.map((check) => (
                     <SeoRow key={check.id} check={check} />
                 ))}
+
+                {status === "complete" && view === "bp" && (
+                    <BestPracticesPanel
+                        violations={bpViolations}
+                        loading={bpLoading}
+                        healingId={bpHealingId}
+                        resolvedIds={bpResolvedIds}
+                        onFix={onBpFix ?? (() => {})}
+                    />
+                )}
 
                 {status === "error" && (
                     <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
