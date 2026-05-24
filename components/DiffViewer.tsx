@@ -3,7 +3,7 @@ import {
     Code2, FileCode, SplitSquareHorizontal,
     Sparkles, ClipboardCheck,
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
@@ -43,6 +43,7 @@ interface DiffViewerProps {
     activeViolationId?: string | null;
     isHealing?: boolean;
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
+    onRefix?: () => void;
 }
 
 export default function DiffViewer({
@@ -52,6 +53,7 @@ export default function DiffViewer({
     activeViolationId,
     isHealing = false,
     onApplyFix,
+    onRefix,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
     // This ref now directly holds the Monaco DiffEditor instance — no memo barrier.
@@ -82,44 +84,51 @@ export default function DiffViewer({
         }
     }, []);
 
-    // ── Compute what to show in each pane ──────────────────────────────────
-    const hasHealResult = !!healResult;
-    const originalHtml = beforeCode || IDLE_BEFORE;
-    let modifiedHtml = originalHtml;
+    // ── Compute full-document modified view ─────────────────────────────────
+    // The right pane always shows the FULL masterHtml with the fix applied inline.
+    // This means the Monaco diff highlights only the changed lines, not a 1-line snippet.
+    const modifiedHtml = useMemo(() => {
+        if (!healResult || !beforeCode) return beforeCode ?? IDLE_AFTER;
 
-    if (hasHealResult && beforeCode) {
-        // ── SPECIAL CASE: html-tag-regex patch (for html-has-lang etc.) ──
-        if (healResult!.patchType === "html-tag-regex") {
-            const langValue = healResult!.fixed; // e.g. "en"
-            modifiedHtml = beforeCode.replace(
+        // Special case: html-tag-regex patch
+        if (healResult.patchType === "html-tag-regex") {
+            const langValue = healResult.fixed;
+            return beforeCode.replace(
                 /<html\b([^>]*?)(?:\s+lang=["'][^"']*["'])?([^>]*?)>/i,
                 (_, before, after) => `<html${before} lang="${langValue}"${after}>`
             );
-        } else {
-            // Primary replace: literal match (works when whitespace is exact)
-            let replaced = beforeCode.replace(healResult!.original, healResult!.fixed);
+        }
 
-            // Fallback: collapse whitespace differences
-            if (replaced === beforeCode && healResult!.original !== healResult!.fixed) {
-                const escaped = healResult!.original
+        // Primary replace: literal match
+        let replaced = beforeCode.replace(healResult.original, healResult.fixed);
+
+        // Fallback: only attempt if original is small enough to be safe
+        if (
+            replaced === beforeCode &&
+            healResult.original !== healResult.fixed &&
+            healResult.original.length <= 1500
+        ) {
+            try {
+                const escaped = healResult.original
                     .trim()
                     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
                     .replace(/\s+/g, "\\s+");
-                try {
-                    replaced = beforeCode.replace(new RegExp(escaped, "s"), healResult!.fixed);
-                } catch {
-                    // invalid regex — keep original
-                }
+                const safeRegex = new RegExp(escaped, "s");
+                const attempt = beforeCode.replace(safeRegex, healResult.fixed);
+                if (attempt !== beforeCode) replaced = attempt;
+            } catch {
+                // Invalid regex — keep original document unchanged
             }
-
-            modifiedHtml = replaced;
         }
-    } else if (!beforeCode) {
-        modifiedHtml = IDLE_AFTER;
-    }
 
+        return replaced;
+    }, [healResult, beforeCode]);
+
+    const hasHealResult = !!healResult;
+    const originalHtml = beforeCode || IDLE_BEFORE;
     const showEditor = mounted && (status === "complete" || status === "idle" || hasHealResult);
     const showApplyButton = hasHealResult || hasManualEdits;
+
 
     // ── Apply Fix: read current editor content (captures manual edits too) ──
     function handleApplyClick() {
@@ -165,6 +174,15 @@ export default function DiffViewer({
                         >
                             <ClipboardCheck className="w-3.5 h-3.5" />
                             Apply Fix to Document
+                        </button>
+                    )}
+                    {hasHealResult && onRefix && (
+                        <button
+                            type="button"
+                            onClick={onRefix}
+                            className="text-[11px] text-slate-500 hover:text-slate-300 underline transition-colors"
+                        >
+                            Regenerate fix
                         </button>
                     )}
                 </div>
