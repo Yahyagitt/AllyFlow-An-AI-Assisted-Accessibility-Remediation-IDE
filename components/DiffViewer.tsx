@@ -22,15 +22,12 @@ function MonacoLoadingPlaceholder() {
     );
 }
 
-const MONACO_OPTIONS: any = {
+const BASE_MONACO_OPTIONS: any = {
     readOnly: false,
     originalEditable: false,
     renderSideBySide: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
-    fontSize: 13,
-    wordWrap: "on",
-    diffWordWrap: "on",
 };
 
 const IDLE_BEFORE = ``.trim();
@@ -42,6 +39,8 @@ interface DiffViewerProps {
     healResult?: HealResponse | null;
     activeViolationId?: string | null;
     isHealing?: boolean;
+    fontSize?: number;
+    wordWrap?: "on" | "off";
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
     onRefix?: () => void;
 }
@@ -52,37 +51,42 @@ export default function DiffViewer({
     healResult,
     activeViolationId,
     isHealing = false,
+    fontSize = 13,
+    wordWrap = "on",
     onApplyFix,
     onRefix,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
-    // This ref now directly holds the Monaco DiffEditor instance — no memo barrier.
     const diffEditorRef = useRef<any>(null);
     const [hasManualEdits, setHasManualEdits] = useState(false);
 
+    const monacoOptions = useMemo(() => ({
+        ...BASE_MONACO_OPTIONS,
+        fontSize,
+        wordWrap,
+        diffWordWrap: wordWrap,
+    }), [fontSize, wordWrap]);
+
     useEffect(() => { setMounted(true); }, []);
 
-    // Reset manual-edit flag whenever the underlying document or fix changes
     useEffect(() => {
         setHasManualEdits(false);
     }, [beforeCode, healResult]);
 
-    // ── onMount: capture the diff editor and wire up change detection ──────
     const handleEditorMount = useCallback((editor: any) => {
         if (!editor) return;
         diffEditorRef.current = editor;
 
         const original = editor.getOriginalEditor();
         const modified = editor.getModifiedEditor();
-        if (original) original.updateOptions({ wordWrap: "on" });
+        if (original) original.updateOptions({ wordWrap });
         if (modified) {
-            modified.updateOptions({ wordWrap: "on" });
-            // Mark that the user has made manual edits
+            modified.updateOptions({ wordWrap });
             modified.onDidChangeModelContent(() => {
                 setHasManualEdits(true);
             });
         }
-    }, []);
+    }, [wordWrap]);
 
     // ── Compute full-document modified view ─────────────────────────────────
     // The right pane always shows the FULL masterHtml with the fix applied inline.
@@ -202,7 +206,7 @@ export default function DiffViewer({
                         original={originalHtml}
                         modified={modifiedHtml}
                         theme="vs-dark"
-                        options={MONACO_OPTIONS}
+                        options={monacoOptions}
                         onMount={handleEditorMount}
                     />
                 ) : (

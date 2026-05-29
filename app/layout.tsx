@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner"; // <-- Added Sonner
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ export default function RootLayout({
         <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
             <body className={`${inter.variable} font-sans antialiased bg-mesh min-h-screen`}>
                 {children}
-                <Toaster position="bottom-right" theme="dark" richColors /> {/* <-- Added Toaster */}
+                <Toaster position="bottom-right" theme="dark" richColors />
             </body>
         </html>
     );

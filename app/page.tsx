@@ -11,8 +11,10 @@ import { toast } from "sonner"; // ── DAY 6: Shadcn Toasts
 import { Progress } from "@/components/ui/progress"; // ── DAY 6: Shadcn Progress
 import {
     Activity, Globe, Download, CheckCircle2, AlertTriangle,
-    X, ArrowRight, ShieldAlert, SearchCheck, FileCode2, Eye
+    X, ArrowRight, ShieldAlert, SearchCheck, FileCode2, Eye,
+    Type, WrapText, Settings
 } from "lucide-react";
+import { useSettings } from "@/lib/useSettings";
 import { cn } from "@/lib/utils";
 import type {
     AxeViolation, ScanResponse, HealResponse, HealStatus, SeoCheck
@@ -222,6 +224,7 @@ const StatCard = memo(function StatCard({
 });
 
 export default function DashboardPage() {
+    const { fontSize, wordWrap, updateFontSize, updateWordWrap } = useSettings();
     const [activeTab, setActiveTab] = useState<TabId>("dashboard");
     const { scansToday, incrementScans } = useDailyScans();
 
@@ -907,6 +910,8 @@ export default function DashboardPage() {
                                     healResult={healResult}
                                     activeViolationId={healingViolationId}
                                     isHealing={healStatus === "healing"}
+                                    fontSize={fontSize}
+                                    wordWrap={wordWrap}
                                     onApplyFix={handleApplyFix}
                                     onRefix={handleRefix}
                                 />
@@ -926,9 +931,83 @@ export default function DashboardPage() {
 
                 {/* ── VIEW 3: SETTINGS ── */}
                 {activeTab === "settings" && (
-                    <div className="flex-1 p-8">
-                        <div className="max-w-2xl mx-auto bg-slate-800/40 rounded-xl border border-slate-700/40 p-8 text-center text-slate-400">
-                            Settings coming soon.
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="max-w-2xl mx-auto pt-20 px-8 pb-12">
+                            <div className="text-center mb-10 space-y-3">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-2 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]">
+                                    <Settings className="w-8 h-8" />
+                                </div>
+                                <h1 className="text-3xl font-bold tracking-tight text-slate-100">Settings</h1>
+                                <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                    Customize your AllyFlow experience.
+                                </p>
+                            </div>
+
+                            <div className="space-y-6">
+                                {/* Font Size */}
+                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <Type className="w-5 h-5 text-blue-400" />
+                                            <h2 className="text-lg font-semibold text-slate-200">Monaco Editor Font Size</h2>
+                                        </div>
+                                        <button
+                                            onClick={() => updateFontSize(13)}
+                                            className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                                        >
+                                            Reset default
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="range"
+                                            min={10}
+                                            max={24}
+                                            step={1}
+                                            value={fontSize}
+                                            onChange={(e) => updateFontSize(Number(e.target.value))}
+                                            className="flex-1 accent-blue-500 h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
+                                        />
+                                        <span className="text-sm font-mono text-slate-300 w-10 text-right">{fontSize}px</span>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] text-slate-500 mt-1 px-1">
+                                        <span>10px</span>
+                                        <span>24px</span>
+                                    </div>
+                                </div>
+
+                                {/* Word Wrap */}
+                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <WrapText className="w-5 h-5 text-blue-400" />
+                                        <h2 className="text-lg font-semibold text-slate-200">Word Wrap</h2>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => updateWordWrap("on")}
+                                            className={cn(
+                                                "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
+                                                wordWrap === "on"
+                                                    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                                    : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
+                                            )}
+                                        >
+                                            On
+                                        </button>
+                                        <button
+                                            onClick={() => updateWordWrap("off")}
+                                            className={cn(
+                                                "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
+                                                wordWrap === "off"
+                                                    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                                    : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
+                                            )}
+                                        >
+                                            Off
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
