@@ -13,10 +13,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-    title: "AllyFlow — AI Accessibility Auditor",
+    title: "AllyFlow — AI-Powered Accessibility Remediation IDE",
     description:
-        "Scan any web page for accessibility violations and get AI-powered fixes. Powered by axe-core and Gemini AI.",
-    keywords: ["accessibility", "a11y", "WCAG", "audit", "AI", "axe-core"],
+        "Stop auditing. Start fixing. AllyFlow is an AI-assisted IDE that scans web pages for WCAG 2.1 AA violations and drafts fixes using Gemini AI. Powered by axe-core, Monaco editor, and a deterministic offline fallback engine.",
+    keywords: ["accessibility", "a11y", "WCAG", "audit", "AI", "axe-core", "remediation", "allyflow"],
 };
 
 export default function RootLayout({

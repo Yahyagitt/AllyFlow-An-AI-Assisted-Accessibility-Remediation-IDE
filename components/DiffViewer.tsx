@@ -9,7 +9,7 @@ import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
 
 const DiffEditor = dynamic(
-    () => import("@monaco-editor/react").then((m) => m.DiffEditor),
+    () => import(/* webpackChunkName: "monaco-editor" */ "@monaco-editor/react").then((m) => m.DiffEditor),
     { ssr: false, loading: () => <MonacoLoadingPlaceholder /> }
 );
 
