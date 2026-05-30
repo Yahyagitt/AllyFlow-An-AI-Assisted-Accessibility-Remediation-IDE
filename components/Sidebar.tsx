@@ -6,7 +6,6 @@ import {
     Shield,
     Code2,
     Settings,
-    Zap,
     ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
@@ -42,8 +41,10 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         >
             {/* Logo */}
             <div className="flex items-center gap-3 px-4 py-5 border-b border-white/[0.06]">
-                <div className="relative flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center glow-blue">
-                    <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
+                <div className="relative flex-shrink-0 w-8 h-8 rounded-lg bg-black flex items-center justify-center">
+                    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M 85 175 L 215 295 L 185 325 L 256 395 L 327 325 L 297 295 L 427 175 L 325 240 L 345 265 L 256 350 L 167 265 L 187 240 Z" fill="#ff0000" stroke="#ff4444" strokeWidth="24" strokeLinejoin="round" />
+                    </svg>
                 </div>
                 {!collapsed && (
                     <span className="text-gradient font-bold text-base tracking-tight select-none">
