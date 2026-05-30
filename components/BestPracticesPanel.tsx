@@ -59,10 +59,10 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingId, onF
     }, [v, selectedNode, onFix, activeNodeId]);
 
     return (
-        <div className={cn("rounded-lg border bg-slate-800/40 transition-opacity", cfg.border, isFullyResolved && "opacity-50")}>
+        <div className={cn("rounded-lg border bg-white/[0.02] transition-opacity", cfg.border, isFullyResolved && "opacity-50")}>
             <button
                 onClick={() => setExpanded((e) => !e)}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-700/20 transition-colors rounded-lg"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-white/[0.04] transition-colors rounded-lg"
             >
                 <Icon className={cn("w-3.5 h-3.5 flex-shrink-0", cfg.text)} aria-hidden />
                 <div className="flex-1 min-w-0">
@@ -130,7 +130,7 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingId, onF
                                     "flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all duration-150",
                                     isHealing
                                         ? "bg-slate-700/50 border-slate-600 text-slate-400 cursor-not-allowed"
-                                        : "bg-violet-600/80 border-violet-500/50 text-white hover:bg-violet-500 active:scale-95 shadow-sm"
+                                        : "bg-[#2222E3]/80 border-[#2222E3]/50 text-white hover:bg-[#2222E3] active:scale-95 shadow-sm"
                                 )}
                             >
                                 {isHealing ? <><Loader2 className="w-3 h-3 animate-spin" />Healing…</> : <><Wand2 className="w-3 h-3" />Fix with AI</>}
@@ -173,7 +173,7 @@ export default function BestPracticesPanel({
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-3 py-8 text-center">
-                <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-2 border-[#2222E3]/30 border-t-[#2222E3] animate-spin" />
                 <p className="text-xs text-slate-400">Scanning for best practice issues…</p>
             </div>
         );
@@ -217,7 +217,7 @@ export default function BestPracticesPanel({
                         <div key={cat}>
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="text-sm">{categoryIcon(cat)}</span>
-                                <h3 className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">
+                                <h3 className="text-[11px] font-normal text-slate-300 uppercase tracking-widest">
                                     {categoryLabel(cat)}
                                 </h3>
                                 <span className="text-[10px] text-slate-500">

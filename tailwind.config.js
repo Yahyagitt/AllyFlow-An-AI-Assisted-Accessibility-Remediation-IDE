@@ -91,7 +91,9 @@ module.exports = {
             backgroundImage: {
                 "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
                 "hero-mesh":
-                    "radial-gradient(at 40% 20%, hsla(220,100%,50%,0.15) 0px, transparent 50%), radial-gradient(at 80% 0%, hsla(260,100%,60%,0.1) 0px, transparent 50%), radial-gradient(at 0% 50%, hsla(200,100%,50%,0.08) 0px, transparent 50%)",
+                    "radial-gradient(at 50% 30%, rgba(34,34,227,0.12) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(34,34,227,0.06) 0px, transparent 50%), radial-gradient(at 20% 60%, rgba(34,34,227,0.04) 0px, transparent 50%)",
+                "hero-grid":
+                    "linear-gradient(rgba(34,34,227,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(34,34,227,0.03) 1px, transparent 1px)",
             },
         },
     },

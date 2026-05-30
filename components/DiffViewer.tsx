@@ -16,7 +16,7 @@ const DiffEditor = dynamic(
 function MonacoLoadingPlaceholder() {
     return (
         <div className="flex items-center justify-center h-full min-h-[200px] gap-3 text-slate-500 text-sm">
-            <div className="w-4 h-4 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+            <div className="w-4 h-4 rounded-full border-2 border-[#2222E3]/30 border-t-[#2222E3] animate-spin" />
             Loading editor…
         </div>
     );
@@ -26,7 +26,6 @@ const BASE_MONACO_OPTIONS: any = {
     readOnly: false,
     originalEditable: false,
     renderSideBySide: true,
-    minimap: { enabled: false },
     scrollBeyondLastLine: false,
 };
 
@@ -41,6 +40,8 @@ interface DiffViewerProps {
     isHealing?: boolean;
     fontSize?: number;
     wordWrap?: "on" | "off";
+    tabSize?: 2 | 4 | 8;
+    minimap?: boolean;
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
     onRefix?: () => void;
 }
@@ -53,6 +54,8 @@ export default function DiffViewer({
     isHealing = false,
     fontSize = 13,
     wordWrap = "on",
+    tabSize = 4,
+    minimap = false,
     onApplyFix,
     onRefix,
 }: DiffViewerProps) {
@@ -65,7 +68,9 @@ export default function DiffViewer({
         fontSize,
         wordWrap,
         diffWordWrap: wordWrap,
-    }), [fontSize, wordWrap]);
+        tabSize,
+        minimap: { enabled: minimap },
+    }), [fontSize, wordWrap, tabSize, minimap]);
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -125,6 +130,11 @@ export default function DiffViewer({
             }
         }
 
+        // Add branding comment if not already present
+        if (!replaced.startsWith("<!-- Fixed with AllyFlow -->")) {
+            replaced = "<!-- Fixed with AllyFlow -->\n" + replaced;
+        }
+
         return replaced;
     }, [healResult, beforeCode]);
 
@@ -149,15 +159,15 @@ export default function DiffViewer({
     }
 
     return (
-        <section className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-700/50" aria-label="Code diff viewer">
-            <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700/50 flex-shrink-0 min-h-[48px]">
+        <section className="flex flex-col h-full bg-[#111113] border-l border-white/[0.06]" aria-label="Code diff viewer">
+            <div className="flex items-center justify-between px-4 py-2 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[48px]">
                 <div className="flex items-center gap-3">
                     <SplitSquareHorizontal className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">
+                    <span className="text-xs font-normal text-slate-300 uppercase tracking-widest">
                         Master Document
                     </span>
                     {hasHealResult && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border bg-violet-500/10 border-violet-500/25 text-violet-400">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border bg-[#2222E3]/10 border-[#2222E3]/25 text-[#2222E3]">
                             <Sparkles className="w-2.5 h-2.5" /> Pending Fix
                         </span>
                     )}
@@ -192,10 +202,10 @@ export default function DiffViewer({
                 </div>
             </div>
 
-            <div className="relative flex-1 min-h-0 bg-[#1e1e1e]">
+            <div className="relative flex-1 min-h-0 bg-[#111113]">
                 {isHealing && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/80 backdrop-blur-sm">
-                        <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#111113]/80 backdrop-blur-sm">
+                        <div className="w-10 h-10 rounded-full border-2 border-[#2222E3]/30 border-t-[#2222E3] animate-spin" />
                         <p className="text-sm font-medium text-slate-300">Generating contextual fix…</p>
                     </div>
                 )}

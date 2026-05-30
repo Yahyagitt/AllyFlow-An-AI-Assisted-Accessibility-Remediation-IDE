@@ -1,6 +1,7 @@
 import Link from "next/link";
 import RevealOnScroll from "@/components/RevealOnScroll";
 import FaqAccordion from "@/components/FaqAccordion";
+import AllyFlowLogo from "@/components/AllyFlowLogo";
 import {
     Zap, Github, ArrowRight, Search, Brain, FileCode2,
     Eye, ShieldCheck, WifiOff, Sparkles, CheckCircle2,
@@ -70,15 +71,15 @@ function FeatureCard({ feature: { icon: Icon, title, description } }: { feature:
             className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all duration-500 hover:border-white/[0.12] hover:bg-white/[0.04] hover:shadow-2xl hover:-translate-y-0.5"
             style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
         >
-            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-blue-500/[0.03] to-violet-500/[0.03] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            <div className="absolute inset-0 -z-10 bg-[#2222E3]/[0.04] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             />
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-blue-500/10 transition-transform duration-500 group-hover:scale-110"
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2222E3]/30 to-[#2222E3]/30 border border-[#2222E3]/20 transition-transform duration-500 group-hover:scale-110"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             >
-                <Icon className="h-6 w-6 text-blue-400" strokeWidth={1.5} />
+                <Icon className="h-6 w-6 text-[#2222E3]" strokeWidth={1.5} />
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-slate-100">{title}</h3>
+            <h3 className="mb-2 text-lg font-normal text-slate-100">{title}</h3>
             <p className="text-sm leading-relaxed text-slate-400">{description}</p>
         </div>
     );
@@ -89,17 +90,17 @@ function StepCard({ step: { step, icon: Icon, title, description } }: { step: ty
         <div className="flex flex-col items-center text-center transition-all duration-500 hover:-translate-y-1"
             style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
         >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 transition-all duration-500 group-hover:shadow-blue-500/40"
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2222E3] text-white text-sm font-bold shadow-lg shadow-[#2222E3]/30 transition-all duration-500 group-hover:shadow-[#2222E3]/50"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             >
                 {step}
             </div>
-            <div className="mt-4 mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/10 transition-all duration-500 hover:scale-110 hover:bg-blue-500/20"
+            <div className="mt-4 mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-500 hover:scale-110 hover:bg-[#2222E3]/20"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             >
-                <Icon className="h-5 w-5 text-blue-400" strokeWidth={1.5} />
+                <Icon className="h-5 w-5 text-[#2222E3]" strokeWidth={1.5} />
             </div>
-            <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+            <h3 className="text-sm font-normal text-slate-200">{title}</h3>
             <p className="mt-1 text-xs text-slate-500 max-w-[180px]">{description}</p>
         </div>
     );
@@ -114,10 +115,10 @@ export default function LandingPage() {
             >
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600">
-                            <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2222E3]">
+                            <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
                         </div>
-                        <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent font-bold text-base">
+                        <span className="text-white font-normal text-2xl tracking-tight">
                             AllyFlow
                         </span>
                     </div>
@@ -140,7 +141,7 @@ export default function LandingPage() {
                         </a>
                         <Link
                             href="/studio"
-                            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-violet-500 hover:shadow-blue-500/30"
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#2222E3] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#2222E3]/15 transition-all hover:bg-[#2222E3] hover:shadow-[#2222E3]/25"
                         >
                             Launch App
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -152,24 +153,12 @@ export default function LandingPage() {
             {/* ── HERO ── */}
             <section className="relative min-h-screen flex items-center overflow-hidden pt-16">
                 <div className="absolute inset-0 bg-hero-mesh" />
+                <div className="absolute inset-0 bg-hero-grid" style={{ backgroundSize: "60px 60px" }} />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#111113]" />
                 <div className="relative mx-auto max-w-5xl px-6 py-32 text-center">
-                    <div
-                        className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-blue-500/10 shadow-[0_0_60px_-10px_rgba(59,130,246,0.3)]"
-                        style={{ animation: "scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards", opacity: 0 }}
-                    >
-                        <Zap className="h-10 w-10 text-blue-400" strokeWidth={1.5} />
+                    <div className="mx-auto mb-8 w-full max-w-3xl">
+                        <AllyFlowLogo />
                     </div>
-                    <h1
-                        className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight leading-tight"
-                        style={{ animation: "fade-in-up-smooth 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards", opacity: 0 }}
-                    >
-                        <span className="text-slate-100">Stop auditing.</span>
-                        <br />
-                        <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-cyan-400 bg-clip-text text-transparent">
-                            Start fixing.
-                        </span>
-                    </h1>
                     <p
                         className="mx-auto mt-6 max-w-2xl text-base sm:text-lg text-slate-400 leading-relaxed"
                         style={{ animation: "fade-in-up-smooth 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards", opacity: 0 }}
@@ -183,8 +172,7 @@ export default function LandingPage() {
                     >
                         <Link
                             href="/studio"
-                            className="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-blue-600/25 transition-all duration-500 hover:from-blue-500 hover:to-violet-500 hover:shadow-blue-500/40 hover:-translate-y-1"
-                            style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+                            className="inline-flex items-center gap-2.5 rounded-xl bg-[#2222E3] px-8 py-4 text-base font-bold text-white shadow-lg shadow-[#2222E3]/20 transition-all duration-500 hover:bg-[#2222E3] hover:shadow-[#2222E3]/30 hover:-translate-y-1"
                         >
                             Launch AllyFlow
                             <ArrowRight className="h-5 w-5" />
@@ -218,42 +206,42 @@ export default function LandingPage() {
                     <div className="mx-auto max-w-6xl px-6 py-24">
                         <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-start">
                         <div className="rounded-2xl border border-red-500/10 bg-red-500/[0.02] p-8">
-                            <h2 className="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">
+                            <h2 className="text-lg font-normal text-red-400 mb-5 flex items-center gap-2">
                                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-xs font-bold text-red-400">!</span>
                                 The Old Way
                             </h2>
-                            <ul className="space-y-3 text-sm text-slate-400">
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    Tools tell you <strong className="text-slate-300">what</strong> is broken — a list of violations and a WCAG link.
+                            <ul className="space-y-4 text-sm text-slate-400">
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                    <span>Tools tell you <strong className="text-slate-300">what</strong> is broken. A list of violations and a WCAG link.</span>
                                 </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    You decode the spec, identify the right ARIA pattern, manually rewrite the component.
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                    <span>You decode the spec, identify the right ARIA pattern, manually rewrite the component.</span>
                                 </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    Accessibility tickets age. Bugs persist. Compliance becomes an afterthought.
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                    <span>Accessibility tickets age. Bugs persist. Compliance becomes an afterthought.</span>
                                 </li>
                             </ul>
                         </div>
                         <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02] p-8">
-                            <h2 className="text-lg font-semibold text-emerald-400 mb-4 flex items-center gap-2">
+                            <h2 className="text-lg font-normal text-emerald-400 mb-5 flex items-center gap-2">
                                 <Sparkles className="h-5 w-5" />
                                 With AllyFlow
                             </h2>
-                            <ul className="space-y-3 text-sm text-slate-400">
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    AI drafts WCAG-compliant HTML for every failing node. <strong className="text-slate-300">Automatically.</strong>
+                            <ul className="space-y-4 text-sm text-slate-400">
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                    <span>AI drafts WCAG-compliant HTML for every failing node. <strong className="text-slate-300">Automatically.</strong></span>
                                 </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    Review every change in a Monaco diff editor before it touches your codebase.
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                    <span>Review every change in a Monaco diff editor before it touches your codebase.</span>
                                 </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="mt-0.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    Audit → Fix → Preview → Export. One tool. No context switching.
+                                <li className="flex items-start gap-3.5">
+                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                    <span>Audit, Fix, Preview, Export. One tool. No context switching.</span>
                                 </li>
                             </ul>
                         </div>
@@ -267,9 +255,9 @@ export default function LandingPage() {
                 <section id="features" className="relative border-t border-white/[0.06]">
                     <div className="mx-auto max-w-6xl px-6 py-24">
                         <div className="text-center mb-16">
-                        <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
+                        <h2 className="text-3xl sm:text-4xl font-normal tracking-tight">
                             Everything you need to{" "}
-                            <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+                            <span className="text-[#2222E3]">
                                 ship accessible code
                             </span>
                         </h2>
@@ -291,9 +279,9 @@ export default function LandingPage() {
                 <section id="how-it-works" className="relative border-t border-white/[0.06]">
                     <div className="mx-auto max-w-6xl px-6 py-24">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
+                        <h2 className="text-3xl sm:text-4xl font-normal tracking-tight">
                             From audit to export in{" "}
-                            <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+                            <span className="text-[#2222E3]">
                                 five steps
                             </span>
                         </h2>
@@ -302,7 +290,7 @@ export default function LandingPage() {
                         </p>
                     </div>
                     <div className="relative">
-                        <div className="absolute top-12 left-[10%] right-[10%] h-px bg-gradient-to-r from-blue-500/20 via-violet-500/20 to-transparent hidden md:block" />
+                        <div className="absolute top-12 left-[10%] right-[10%] h-px bg-gradient-to-r from-[#2222E3]/40 via-[#2222E3]/40 to-transparent hidden md:block" />
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-4">
                             {HOW_IT_WORKS.map((step) => (
                                 <StepCard key={step.step} step={step} />
@@ -318,9 +306,9 @@ export default function LandingPage() {
                 <section id="faq" className="relative border-t border-white/[0.06]">
                     <div className="mx-auto max-w-6xl px-6 py-24">
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
+                        <h2 className="text-3xl sm:text-4xl font-normal tracking-tight">
                                 Frequently asked{" "}
-                                <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+                                <span className="text-[#2222E3]">
                                     questions
                                 </span>
                             </h2>
@@ -338,7 +326,7 @@ export default function LandingPage() {
             <section id="tech" className="relative border-t border-white/[0.06]">
                 <div className="mx-auto max-w-6xl px-6 py-24">
                     <div className="text-center mb-12">
-                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                        <h2 className="text-2xl sm:text-3xl font-normal tracking-tight">
                             Built with modern tools
                         </h2>
                     </div>
@@ -363,9 +351,9 @@ export default function LandingPage() {
             <RevealOnScroll delay={500}>
             <section className="relative border-t border-white/[0.06]">
                 <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-                    <div className="rounded-3xl border border-white/[0.06] bg-gradient-to-b from-blue-500/[0.03] to-violet-500/[0.03] p-12 shadow-2xl">
-                        <Monitor className="mx-auto h-10 w-10 text-blue-400 mb-6" strokeWidth={1.5} />
-                        <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">
+                    <div className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-12 shadow-2xl">
+                        <Monitor className="mx-auto h-10 w-10 text-[#2222E3] mb-6" strokeWidth={1.5} />
+                        <h2 className="text-3xl sm:text-4xl font-normal tracking-tight mb-4">
                             Ready to stop auditing?
                         </h2>
                         <p className="text-slate-400 text-sm max-w-md mx-auto mb-8">
@@ -373,7 +361,7 @@ export default function LandingPage() {
                         </p>
                         <Link
                             href="/studio"
-                            className="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-blue-600/25 transition-all hover:from-blue-500 hover:to-violet-500 hover:shadow-blue-500/40 hover:-translate-y-0.5"
+                            className="inline-flex items-center gap-2.5 rounded-xl bg-[#2222E3] px-8 py-4 text-base font-bold text-white shadow-lg shadow-[#2222E3]/20 transition-all hover:bg-[#2222E3] hover:shadow-[#2222E3]/30 hover:-translate-y-0.5"
                         >
                             Launch AllyFlow
                             <ArrowRight className="h-5 w-5" />
@@ -388,7 +376,7 @@ export default function LandingPage() {
                 <div className="mx-auto max-w-6xl px-6 py-10">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <Zap className="h-4 w-4 text-blue-400" strokeWidth={2} />
+                            <Zap className="h-4 w-4 text-[#2222E3]" strokeWidth={2} />
                             <span>AllyFlow</span>
                             <span className="text-slate-600">—</span>
                             <span>Built for a more accessible web.</span>

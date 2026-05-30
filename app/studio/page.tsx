@@ -14,7 +14,7 @@ import {
     X, ArrowRight, ShieldAlert, SearchCheck, FileCode2, Eye,
     Type, WrapText, Settings, BarChart3, List, Clock, Zap,
     Sparkles, Bug, Keyboard, Monitor, Lightbulb, History,
-    Loader2, Upload, TrendingUp
+    Loader2, Upload, Trash2, Indent, Shield
 } from "lucide-react";
 import { useSettings } from "@/lib/useSettings";
 import { cn } from "@/lib/utils";
@@ -217,8 +217,8 @@ const StatCard = memo(function StatCard({
     label, value, color, subtitle
 }: { label: string; value: number | string; color: string; subtitle: string }) {
     return (
-        <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-5 flex flex-col items-center justify-center text-center shadow-lg">
-            <div className={cn("text-4xl font-black tracking-tight mb-1", color)}>{value}</div>
+        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 flex flex-col items-center justify-center text-center shadow-lg transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5 group">
+            <div className={cn("text-4xl font-normal tracking-tight mb-1 transition-all duration-300 group-hover:scale-105", color)}>{value}</div>
             <div className="text-sm font-bold text-slate-300">{label}</div>
             <div className="text-[11px] text-slate-500 mt-1">{subtitle}</div>
         </div>
@@ -226,7 +226,7 @@ const StatCard = memo(function StatCard({
 });
 
 export default function DashboardPage() {
-    const { fontSize, wordWrap, updateFontSize, updateWordWrap } = useSettings();
+    const { fontSize, wordWrap, tabSize, minimap, anonymousUsage, updateFontSize, updateWordWrap, updateTabSize, updateMinimap, updateAnonymousUsage, clearScanData } = useSettings();
     const [activeTab, setActiveTab] = useState<TabId>("dashboard");
     const { scansToday, incrementScans } = useDailyScans();
 
@@ -578,11 +578,12 @@ export default function DashboardPage() {
                     });
                     return prev;
                 }
-                return (
+                const next = (
                     prev.slice(0, idx) +
                     healResult.fixed +
                     prev.slice(idx + healResult.original.length)
                 );
+                return next;
             });
         } else {
             // Normalize any manually-typed event handlers before committing to
@@ -825,31 +826,31 @@ export default function DashboardPage() {
                     <div className="flex-1 overflow-y-auto">
                         <div className="max-w-4xl mx-auto pt-20 px-8 pb-12">
                             <div className="text-center mb-10 space-y-3">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-2 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#2222E3]/10 border border-[#2222E3]/20 text-[#2222E3] mb-2 shadow-[0_0_40px_-10px_rgba(34,34,227,0.3)]">
                                     <SearchCheck className="w-8 h-8" />
                                 </div>
-                                <h1 className="text-3xl font-bold tracking-tight text-slate-100">Audit a Website</h1>
+                                <h1 className="text-3xl font-normal tracking-tight text-slate-100">Audit a Website</h1>
                                 <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                     Run a comprehensive WCAG 2.1 AA accessibility and basic SEO health check. Enter a URL or upload an HTML file.
                                 </p>
                             </div>
 
-                            <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50 shadow-2xl backdrop-blur-sm mb-8">
+                            <div className="bg-white/[0.02] p-4 rounded-2xl border border-white/[0.06] shadow-2xl backdrop-blur-sm mb-8">
                                 <UrlInputBar status={scanStatus} onScan={handleScan} />
                             </div>
 
                             {/* ── Scan Progress Stages ── */}
                             {scanStatus === "scanning" && (
-                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 mb-8">
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6 mb-8">
                                     <div className="flex items-center gap-3 mb-4">
-                                        <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                                        <span className="text-sm font-semibold text-slate-200">Audit in Progress</span>
+                                        <Loader2 className="w-5 h-5 text-[#2222E3] animate-spin" />
+                                        <span className="text-sm font-normal text-slate-200">Audit in Progress</span>
                                     </div>
                                     <div className="h-1.5 w-full bg-slate-700/50 rounded-full overflow-hidden mb-3">
-                                        <div className="h-full w-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full animate-pulse" style={{ animationDuration: "1.5s" }} />
+                                        <div className="h-full w-full bg-gradient-to-r from-[#2222E3] to-[#2222E3] rounded-full animate-pulse" style={{ animationDuration: "1.5s" }} />
                                     </div>
                                     <div className="flex items-center gap-2 text-xs text-slate-400">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                                        <span className="inline-block w-2 h-2 rounded-full bg-[#2222E3] animate-pulse" />
                                         {scanStage || "Initializing…"}
                                     </div>
                                 </div>
@@ -859,63 +860,63 @@ export default function DashboardPage() {
                             {scanStatus === "idle" && (
                                 <div className="space-y-8">
                                     {/* Getting Started */}
-                                    <div className="bg-slate-800/30 rounded-2xl border border-slate-700/40 p-8">
-                                        <h2 className="text-lg font-semibold flex items-center gap-2 mb-6">
+                                    <div className="bg-white/[0.02] rounded-2xl border border-white/[0.06] p-8">
+                                        <h2 className="text-lg font-normal flex items-center gap-2 mb-6">
                                             <Lightbulb className="w-5 h-5 text-yellow-400" />
                                             Getting Started
                                         </h2>
                                         <div className="grid sm:grid-cols-3 gap-6">
-                                            <div className="text-center">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/10">
-                                                    <Globe className="w-5 h-5 text-blue-400" />
+                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 hover:bg-[#2222E3]/20 hover:scale-110">
+                                                    <Globe className="w-5 h-5 text-[#2222E3]" />
                                                 </div>
-                                                <h3 className="text-sm font-semibold text-slate-200 mb-1">Enter a URL</h3>
+                                                <h3 className="text-sm font-normal text-slate-200 mb-1">Enter a URL</h3>
                                                 <p className="text-xs text-slate-500">Paste any public URL above to scan for WCAG violations.</p>
                                             </div>
-                                            <div className="text-center">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 border border-violet-500/10">
-                                                    <Upload className="w-5 h-5 text-violet-400" />
+                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 hover:bg-[#2222E3]/20 hover:scale-110">
+                                                    <Upload className="w-5 h-5 text-[#2222E3]" />
                                                 </div>
-                                                <h3 className="text-sm font-semibold text-slate-200 mb-1">Upload a File</h3>
+                                                <h3 className="text-sm font-normal text-slate-200 mb-1">Upload a File</h3>
                                                 <p className="text-xs text-slate-500">Drag-and-drop an HTML file for offline auditing.</p>
                                             </div>
-                                            <div className="text-center">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/10">
+                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/10 transition-all duration-300 hover:bg-emerald-500/20 hover:scale-110">
                                                     <Bug className="w-5 h-5 text-emerald-400" />
                                                 </div>
-                                                <h3 className="text-sm font-semibold text-slate-200 mb-1">Try Test Page</h3>
-                                                <p className="text-xs text-slate-500">Use <code className="text-blue-400 bg-blue-500/10 px-1 rounded">/test.html</code> to see AllyFlow in action.</p>
+                                                <h3 className="text-sm font-normal text-slate-200 mb-1">Try Test Page</h3>
+                                                <p className="text-xs text-slate-500">Use <code className="text-[#2222E3] bg-[#2222E3]/10 px-1 rounded">/test.html</code> to see AllyFlow in action.</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Feature Highlights */}
                                     <div className="grid sm:grid-cols-2 gap-4">
-                                        <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-5">
+                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
                                             <div className="flex items-center gap-3 mb-3">
-                                                <Zap className="w-5 h-5 text-blue-400" />
-                                                <h3 className="text-sm font-semibold text-slate-200">AI-Powered Fixes</h3>
+                                                <Zap className="w-5 h-5 text-[#2222E3]" />
+                                                <h3 className="text-sm font-normal text-slate-200">AI-Powered Fixes</h3>
                                             </div>
                                             <p className="text-xs text-slate-400 leading-relaxed">Gemini 2.5 Flash drafts WCAG-compliant HTML for every failing node. Review changes in a Monaco diff editor before applying.</p>
                                         </div>
-                                        <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-5">
+                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
                                             <div className="flex items-center gap-3 mb-3">
                                                 <ShieldAlert className="w-5 h-5 text-emerald-400" />
-                                                <h3 className="text-sm font-semibold text-slate-200">Safe by Default</h3>
+                                                <h3 className="text-sm font-normal text-slate-200">Safe by Default</h3>
                                             </div>
                                             <p className="text-xs text-slate-400 leading-relaxed">Scripts are hibernated during scanning. No side effects. The offline heuristic engine guarantees fixes even without AI.</p>
                                         </div>
-                                        <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-5">
+                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
                                             <div className="flex items-center gap-3 mb-3">
-                                                <BarChart3 className="w-5 h-5 text-violet-400" />
-                                                <h3 className="text-sm font-semibold text-slate-200">SEO + Best Practices</h3>
+                                                <BarChart3 className="w-5 h-5 text-[#2222E3]" />
+                                                <h3 className="text-sm font-normal text-slate-200">SEO + Best Practices</h3>
                                             </div>
                                             <p className="text-xs text-slate-400 leading-relaxed">Lightweight SEO checks and a 7-rule best-practices engine catch what axe-core automation misses.</p>
                                         </div>
-                                        <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-5">
+                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
                                             <div className="flex items-center gap-3 mb-3">
-                                                <Download className="w-5 h-5 text-cyan-400" />
-                                                <h3 className="text-sm font-semibold text-slate-200">Export Clean HTML</h3>
+                                                <Download className="w-5 h-5 text-[#2222E3]" />
+                                                <h3 className="text-sm font-normal text-slate-200">Export Clean HTML</h3>
                                             </div>
                                             <p className="text-xs text-slate-400 leading-relaxed">Export remediated HTML with absolutized paths, restored scripts, and zero tracking attributes.</p>
                                         </div>
@@ -923,14 +924,14 @@ export default function DashboardPage() {
 
                                     {/* Recent Scans */}
                                     {recentScans.length > 0 && (
-                                        <div className="bg-slate-800/30 rounded-2xl border border-slate-700/40 p-6">
-                                            <h2 className="text-sm font-semibold flex items-center gap-2 mb-4 text-slate-300">
+                                        <div className="bg-white/[0.02] rounded-2xl border border-white/[0.06] p-6">
+                                            <h2 className="text-sm font-normal flex items-center gap-2 mb-4 text-slate-300">
                                                 <History className="w-4 h-4 text-slate-400" />
                                                 Recent Scans
                                             </h2>
                                             <div className="space-y-2">
                                                 {recentScans.map((scan, i) => (
-                                                    <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-slate-800/40 border border-slate-700/30 hover:bg-slate-800/60 transition-colors cursor-pointer" onClick={() => setActiveTab("audit")}>
+                                                    <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer" onClick={() => setActiveTab("audit")}>
                                                         <div className="flex items-center gap-3 min-w-0">
                                                             <Globe className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                                             <span className="text-sm text-slate-300 truncate">{scan.url}</span>
@@ -955,10 +956,10 @@ export default function DashboardPage() {
                                 <div className="animate-fade-in-up">
                                     <div className="flex items-center justify-between mb-6">
                                         <div className="flex items-center gap-3">
-                                            <ShieldAlert className="w-5 h-5 text-violet-400" />
-                                            <h2 className="text-lg font-semibold">Audit Report Generated</h2>
+                                            <ShieldAlert className="w-5 h-5 text-[#2222E3]" />
+                                            <h2 className="text-lg font-normal">Audit Report Generated</h2>
                                             {scanDuration && (
-                                                <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-800/60 px-2.5 py-1 rounded-md border border-slate-700/40">
+                                                <span className="flex items-center gap-1 text-xs text-slate-500 bg-white/[0.02] px-2.5 py-1 rounded-md border border-white/[0.06]">
                                                     <Clock className="w-3 h-3" />
                                                     {scanDuration}
                                                 </span>
@@ -966,10 +967,10 @@ export default function DashboardPage() {
                                         </div>
                                         <button
                                             onClick={() => setActiveTab("audit")}
-                                            className="group flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-[0_0_30px_-5px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_-5px_rgba(124,58,237,0.6)]"
+                                            className="group flex items-center gap-2 bg-[#2222E3] hover:bg-[#2222E3]/80 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-[0_0_20px_-8px_rgba(34,34,227,0.3)] hover:shadow-[0_0_20px_-8px_rgba(34,34,227,0.4)]"
                                         >
                                             Review & Fix Issues
-                                            <span className="text-[10px] text-violet-300 bg-violet-500/30 px-1.5 py-0.5 rounded ml-1">Ctrl+2</span>
+                                            <span className="text-[10px] text-[#2222E3] bg-[#2222E3]/30 px-1.5 py-0.5 rounded ml-1">Ctrl+2</span>
                                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                         </button>
                                     </div>
@@ -997,55 +998,68 @@ export default function DashboardPage() {
                                         <StatCard
                                             label="Scans Today"
                                             value={scansToday}
-                                            color="text-blue-400"
+                                            color="text-[#2222E3]"
                                             subtitle="Your daily usage"
                                         />
                                     </div>
 
-                                    {/* ── Scan Trend ── */}
+                                    {/* ── Scan Comparison ── */}
                                     {recentScans.length > 1 && (() => {
-                                        const last = recentScans.slice(0, 2);
-                                        const prevScore = last.length > 1 ? last[1].a11yScore : null;
-                                        const delta = prevScore !== null ? last[0].a11yScore - prevScore : null;
+                                        const prev = recentScans[1];
+                                        const curr = recentScans[0];
                                         return (
-                                            <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-5 mb-6">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                                                        <TrendingUp className="w-4 h-4 text-emerald-400" />
-                                                        Scan Trend
-                                                    </h3>
-                                                    {delta !== null && delta !== 0 && (
-                                                        <span className={cn(
-                                                            "flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md",
-                                                            delta > 0
-                                                                ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
-                                                                : "text-red-400 bg-red-500/10 border border-red-500/20"
-                                                        )}>
-                                                            {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} pts
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    {recentScans.slice(0, 5).reverse().map((s, i, arr) => {
-                                                        const maxScore = Math.max(...recentScans.map(ss => ss.a11yScore), 100);
-                                                        const barH = Math.max((s.a11yScore / maxScore) * 100, 4);
-                                                        return (
-                                                            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-                                                                <div className="w-full flex items-end justify-center" style={{ height: 56 }}>
-                                                                    <div
-                                                                        className={cn(
-                                                                            "w-4 rounded-t transition-all duration-500",
-                                                                            s.a11yScore > 80 ? "bg-emerald-500" : s.a11yScore > 50 ? "bg-yellow-500" : "bg-red-500"
-                                                                        )}
-                                                                        style={{ height: `${barH}%` }}
-                                                                    />
-                                                                </div>
-                                                                <span className="text-[10px] text-slate-500 leading-none">{s.a11yScore}%</span>
-                                                                <span className="text-[9px] text-slate-600 leading-none truncate w-full text-center">{s.url}</span>
+                                            <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6 mb-6">
+                                                <h3 className="text-sm font-normal text-slate-200 flex items-center gap-2 mb-5">
+                                                    <BarChart3 className="w-4 h-4 text-[#2222E3]" />
+                                                    Scan Comparison
+                                                </h3>
+                                                <div className="grid grid-cols-2 gap-6">
+                                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-300 hover:bg-white/[0.04]">
+                                                        <div className="text-sm text-slate-500 mb-2 truncate font-normal" title={prev.url}>{prev.url}</div>
+                                                        <div className="flex items-center gap-6 mt-3">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", prev.a11yScore > 80 ? "text-emerald-400" : prev.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.a11yScore}%</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">A11y</span>
                                                             </div>
-                                                        );
-                                                    })}
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", prev.seoScore === 100 ? "text-emerald-400" : prev.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.seoScore}%</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">SEO</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-2xl font-normal text-orange-400">{prev.violations}</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">Issues</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 mt-3">{prev.timestamp}</div>
+                                                    </div>
+                                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-300 hover:bg-white/[0.04]">
+                                                        <div className="text-sm text-slate-500 mb-2 truncate font-normal" title={curr.url}>{curr.url}</div>
+                                                        <div className="flex items-center gap-6 mt-3">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", curr.a11yScore > 80 ? "text-emerald-400" : curr.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.a11yScore}%</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">A11y</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", curr.seoScore === 100 ? "text-emerald-400" : curr.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.seoScore}%</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">SEO</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-2xl font-normal text-orange-400">{curr.violations}</span>
+                                                                <span className="text-xs text-slate-500 mt-0.5">Issues</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 mt-3">{curr.timestamp}</div>
+                                                    </div>
                                                 </div>
+                                                {(() => {
+                                                    const diff = curr.a11yScore - prev.a11yScore;
+                                                    if (diff === 0) return <div className="text-center text-sm text-slate-500 mt-4">Scores are identical</div>;
+                                                    return (
+                                                        <div className={cn("text-center text-sm font-medium mt-4", diff > 0 ? "text-emerald-400" : "text-red-400")}>
+                                                            {curr.url} is {diff > 0 ? "▲" : "▼"} {Math.abs(diff)} pts {diff > 0 ? "better" : "worse"} than {prev.url}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         );
                                     })()}
@@ -1055,38 +1069,57 @@ export default function DashboardPage() {
                                         const counts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
                                         violations.forEach(v => { if (v.impact) counts[v.impact]++; });
                                         const total = violations.length;
-                                        const bars = [
-                                            { key: "critical" as const, label: "Critical", count: counts.critical, color: "bg-red-500", textColor: "text-red-400" },
-                                            { key: "serious" as const, label: "Serious", count: counts.serious, color: "bg-orange-500", textColor: "text-orange-400" },
-                                            { key: "moderate" as const, label: "Moderate", count: counts.moderate, color: "bg-yellow-500", textColor: "text-yellow-400" },
-                                            { key: "minor" as const, label: "Minor", count: counts.minor, color: "bg-slate-500", textColor: "text-slate-400" },
+                                        const segments = [
+                                            { key: "critical", label: "Critical", count: counts.critical, color: "#ef4444", textColor: "text-red-400", barColor: "bg-red-500" },
+                                            { key: "serious", label: "Serious", count: counts.serious, color: "#f97316", textColor: "text-orange-400", barColor: "bg-orange-500" },
+                                            { key: "moderate", label: "Moderate", count: counts.moderate, color: "#eab308", textColor: "text-yellow-400", barColor: "bg-yellow-500" },
+                                            { key: "minor", label: "Minor", count: counts.minor, color: "#64748b", textColor: "text-slate-400", barColor: "bg-slate-500" },
                                         ];
+                                        const cx = 80, cy = 80, r = 58, sw = 14;
+                                        const circ = 2 * Math.PI * r;
+                                        let cumulative = 0;
+                                        const arcs = segments.map(s => {
+                                            const prop = total > 0 ? s.count / total : 0;
+                                            const len = prop * circ;
+                                            const offset = -cumulative;
+                                            cumulative += len;
+                                            return { ...s, prop, len, offset };
+                                        });
                                         return (
-                                            <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-5 mb-6">
-                                                <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                                                    <BarChart3 className="w-4 h-4 text-blue-400" />
+                                            <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 mb-6">
+                                                <h3 className="text-sm font-normal text-slate-200 mb-4 flex items-center gap-2">
+                                                    <BarChart3 className="w-4 h-4 text-[#2222E3]" />
                                                     Violation Breakdown
                                                 </h3>
-                                                <div className="grid grid-cols-4 items-end gap-2 h-28">
-                                                    {bars.map(bar => {
-                                                        const pct = total > 0 ? (bar.count / Math.max(...bars.map(b => b.count), 1)) * 100 : 0;
-                                                        return (
-                                                            <div key={bar.key} className="flex flex-col items-center justify-end h-full gap-1.5">
-                                                                <span className={cn("text-xs font-bold leading-none", bar.textColor)}>{bar.count}</span>
-                                                                <div
-                                                                    className={cn("w-full min-h-[4px] rounded-t transition-all duration-500", bar.color)}
-                                                                    style={{ height: `${Math.max(pct, bar.count > 0 ? 8 : 0)}%` }}
+                                                <div className="flex items-center gap-10">
+                                                    <div className="relative flex-shrink-0">
+                                                        <svg width="160" height="160" viewBox="0 0 160 160" className="-rotate-90">
+                                                            <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={sw} />
+                                                            {arcs.map(a => a.count > 0 && (
+                                                                <circle key={a.key} cx={cx} cy={cy} r={r} fill="none" stroke={a.color} strokeWidth={sw}
+                                                                    strokeDasharray={`${a.len} ${circ - a.len}`}
+                                                                    strokeDashoffset={a.offset}
+                                                                    strokeLinecap="butt"
+                                                                    className="transition-all duration-700"
                                                                 />
+                                                            ))}
+                                                        </svg>
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <div className="text-center">
+                                                                <div className="text-3xl font-normal text-slate-100">{total}</div>
+                                                                <div className="text-xs text-slate-500">Total</div>
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                <div className="grid grid-cols-4 gap-2 mt-1.5">
-                                                    {bars.map(bar => (
-                                                        <div key={bar.key} className="text-center">
-                                                            <span className={cn("text-[10px] font-medium", bar.textColor)}>{bar.label}</span>
                                                         </div>
-                                                    ))}
+                                                    </div>
+                                                    <div className="flex-1 grid grid-cols-2 gap-x-8 gap-y-3">
+                                                        {segments.map(s => (
+                                                            <div key={s.key} className="flex items-center gap-3">
+                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                                                                <span className="text-sm text-slate-400 flex-1">{s.label}</span>
+                                                                <span className={cn("text-sm font-normal", s.textColor)}>{s.count}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -1098,13 +1131,13 @@ export default function DashboardPage() {
                                         bpViolations.forEach(v => { bpCounts[v.category] = (bpCounts[v.category] || 0) + 1; });
                                         const bpCards = [
                                             { key: "motor", label: "Motor", count: bpCounts["motor"] || 0, color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
-                                            { key: "cognitive", label: "Cognitive", count: bpCounts["cognitive"] || 0, color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-                                            { key: "screen-reader", label: "Screen Reader", count: bpCounts["screen-reader"] || 0, color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
+                                            { key: "cognitive", label: "Cognitive", count: bpCounts["cognitive"] || 0, color: "bg-[#2222E3]/10 text-[#2222E3] border-[#2222E3]/20" },
+                                            { key: "screen-reader", label: "Screen Reader", count: bpCounts["screen-reader"] || 0, color: "bg-[#2222E3]/10 text-[#2222E3] border-[#2222E3]/20" },
                                         ];
                                         return (
-                                            <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-5 mb-6">
-                                                <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                                                    <Sparkles className="w-4 h-4 text-purple-400" />
+                                            <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 mb-6">
+                                                <h3 className="text-sm font-normal text-slate-200 mb-4 flex items-center gap-2">
+                                                    <Sparkles className="w-4 h-4 text-[#2222E3]" />
                                                     Best Practices Summary
                                                 </h3>
                                                 <div className="flex flex-wrap gap-3">
@@ -1123,14 +1156,14 @@ export default function DashboardPage() {
 
                                     {/* ── Recent Scans (post-scan) ── */}
                                     {recentScans.length > 1 && (
-                                        <div className="bg-slate-800/30 rounded-xl border border-slate-700/40 p-5">
-                                            <h2 className="text-sm font-semibold flex items-center gap-2 mb-3 text-slate-300">
+                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5">
+                                            <h2 className="text-sm font-normal flex items-center gap-2 mb-3 text-slate-300">
                                                 <History className="w-4 h-4 text-slate-400" />
                                                 Previous Scans
                                             </h2>
                                             <div className="space-y-1.5">
                                                 {recentScans.slice(1).map((scan, i) => (
-                                                    <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40 border border-slate-700/30 hover:bg-slate-800/60 transition-colors cursor-pointer" onClick={() => setActiveTab("audit")}>
+                                                    <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer" onClick={() => setActiveTab("audit")}>
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             <Globe className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                                                             <span className="text-xs text-slate-300 truncate">{scan.url}</span>
@@ -1152,16 +1185,16 @@ export default function DashboardPage() {
 
                 {/* ── VIEW 2: AUDIT STUDIO (THE IDE) ── */}
                 {activeTab === "audit" && (
-                    <div className="flex flex-col h-full bg-[#1e1e1e] animate-in fade-in duration-300">
+                    <div className="flex flex-col h-full bg-[#111113] animate-in fade-in duration-300">
                         {/* IDE Header */}
-                        <header className="flex items-center justify-between px-4 h-14 bg-[#252526] border-b border-slate-700/60 flex-shrink-0">
+                        <header className="flex items-center justify-between px-4 h-14 bg-[#111113] border-b border-white/[0.06] flex-shrink-0">
                             <div className="flex items-center gap-3">
-                                <Activity className="w-4 h-4 text-violet-400" />
-                                <span className="text-sm font-semibold text-slate-200">Remediation Studio</span>
+                                <Activity className="w-4 h-4 text-[#2222E3]" />
+                                <span className="text-sm font-normal text-slate-200">Remediation Studio</span>
                                 {scannedUrl && (
                                     <>
                                         <span className="text-slate-600">/</span>
-                                        <span className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-800/50 px-2 py-1 rounded-md border border-slate-700/50">
+                                        <span className="text-xs text-slate-400 flex items-center gap-1.5 bg-white/[0.02] px-2 py-1 rounded-md border border-white/[0.06]">
                                             {scannedUrl === "Uploaded File" ? <FileCode2 className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                                             {scannedUrl}
                                         </span>
@@ -1206,14 +1239,14 @@ export default function DashboardPage() {
                         {/* Progress Bar for Loading States */}
                         <div className="h-[2px] w-full bg-transparent overflow-hidden flex-shrink-0">
                             {(scanStatus === "scanning" || healStatus === "healing") && (
-                                <Progress value={undefined} className="h-full w-full rounded-none bg-blue-500/10 [&>div]:bg-blue-500 animate-pulse" />
+                                <Progress value={undefined} className="h-full w-full rounded-none bg-[#2222E3]/10 [&>div]:bg-[#2222E3] animate-pulse" />
                             )}
                         </div>
 
                         {/* Split Panes */}
                         <div className="flex-1 flex flex-row min-h-0">
                             {/* Left: Violation List */}
-                            <div className="w-[450px] flex flex-col min-h-0 border-r border-slate-700/60 bg-[#18181a] shadow-2xl z-10">
+                            <div className="w-[450px] flex flex-col min-h-0 border-r border-white/[0.06] bg-[#111113] shadow-2xl z-10">
                                 {healError && (
                                     <div className="p-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex gap-2">
                                         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -1238,7 +1271,7 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Right: Monaco Editor */}
-                            <div className="flex-1 flex flex-col min-h-0 bg-[#1e1e1e]">
+                            <div className="flex-1 flex flex-col min-h-0 bg-[#111113]">
                                 <DiffViewer
                                     status={scanStatus}
                                     beforeCode={masterHtml}
@@ -1247,6 +1280,8 @@ export default function DashboardPage() {
                                     isHealing={healStatus === "healing"}
                                     fontSize={fontSize}
                                     wordWrap={wordWrap}
+                                    tabSize={tabSize}
+                                    minimap={minimap}
                                     onApplyFix={handleApplyFix}
                                     onRefix={handleRefix}
                                 />
@@ -1269,10 +1304,10 @@ export default function DashboardPage() {
                     <div className="flex-1 overflow-y-auto">
                         <div className="max-w-2xl mx-auto pt-20 px-8 pb-12">
                             <div className="text-center mb-10 space-y-3">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-2 shadow-[0_0_40px_-10px_rgba(59,130,246,0.3)]">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/[0.08] text-white mb-2">
                                     <Settings className="w-8 h-8" />
                                 </div>
-                                <h1 className="text-3xl font-bold tracking-tight text-slate-100">Settings</h1>
+                                <h1 className="text-3xl font-normal tracking-tight text-slate-100">Settings</h1>
                                 <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                     Customize your AllyFlow experience.
                                 </p>
@@ -1280,15 +1315,15 @@ export default function DashboardPage() {
 
                             <div className="space-y-6">
                                 {/* Font Size */}
-                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-6">
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
-                                            <Type className="w-5 h-5 text-blue-400" />
-                                            <h2 className="text-lg font-semibold text-slate-200">Monaco Editor Font Size</h2>
+                                            <Type className="w-5 h-5 text-white" />
+                                            <h2 className="text-lg font-normal text-slate-200">Monaco Editor Font Size</h2>
                                         </div>
                                         <button
                                             onClick={() => updateFontSize(13)}
-                                            className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                                            className="text-xs text-slate-400 hover:text-white underline transition-colors"
                                         >
                                             Reset default
                                         </button>
@@ -1301,7 +1336,7 @@ export default function DashboardPage() {
                                             step={1}
                                             value={fontSize}
                                             onChange={(e) => updateFontSize(Number(e.target.value))}
-                                            className="flex-1 accent-blue-500 h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
+                                            className="flex-1 accent-white h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
                                         />
                                         <span className="text-sm font-mono text-slate-300 w-10 text-right">{fontSize}px</span>
                                     </div>
@@ -1312,10 +1347,10 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Word Wrap */}
-                                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-6">
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
                                     <div className="flex items-center gap-3 mb-4">
-                                        <WrapText className="w-5 h-5 text-blue-400" />
-                                        <h2 className="text-lg font-semibold text-slate-200">Word Wrap</h2>
+                                        <WrapText className="w-5 h-5 text-white" />
+                                        <h2 className="text-lg font-normal text-slate-200">Word Wrap</h2>
                                     </div>
                                     <div className="flex gap-3">
                                         <button
@@ -1323,7 +1358,7 @@ export default function DashboardPage() {
                                             className={cn(
                                                 "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
                                                 wordWrap === "on"
-                                                    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                                    ? "bg-white/[0.1] text-white border-white/20"
                                                     : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
                                             )}
                                         >
@@ -1334,11 +1369,105 @@ export default function DashboardPage() {
                                             className={cn(
                                                 "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
                                                 wordWrap === "off"
-                                                    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                                    ? "bg-white/[0.1] text-white border-white/20"
                                                     : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
                                             )}
                                         >
                                             Off
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Tab Size */}
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <Indent className="w-5 h-5 text-white" />
+                                        <h2 className="text-lg font-normal text-slate-200">Tab Size</h2>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        {([2, 4, 8] as const).map((size) => (
+                                            <button
+                                                key={size}
+                                                onClick={() => updateTabSize(size)}
+                                                className={cn(
+                                                    "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
+                                                    tabSize === size
+                                                        ? "bg-white/[0.1] text-white border-white/20"
+                                                        : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
+                                                )}
+                                            >
+                                                {size}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Minimap */}
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Eye className="w-5 h-5 text-white" />
+                                            <h2 className="text-lg font-normal text-slate-200">Minimap</h2>
+                                        </div>
+                                        <button
+                                            onClick={() => updateMinimap(!minimap)}
+                                            className={cn(
+                                                "relative w-11 h-6 rounded-full transition-colors",
+                                                minimap ? "bg-white/[0.2]" : "bg-slate-700"
+                                            )}
+                                        >
+                                            <span
+                                                className={cn(
+                                                    "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                                                    minimap && "translate-x-5"
+                                                )}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Clear All Scan Data */}
+                                <div className="bg-white/[0.02] rounded-xl border border-red-500/10 p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Trash2 className="w-5 h-5 text-red-400" />
+                                            <div>
+                                                <h2 className="text-lg font-normal text-slate-200">Clear All Scan Data</h2>
+                                                <p className="text-xs text-slate-500 mt-0.5">Removes recent scans, daily counters, and cached results</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={clearScanData}
+                                            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Anonymous Usage Stats */}
+                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Shield className="w-5 h-5 text-white" />
+                                            <div>
+                                                <h2 className="text-lg font-normal text-slate-200">Anonymous Usage Stats</h2>
+                                                <p className="text-xs text-slate-500 mt-0.5">Help improve AllyFlow by sending anonymous usage data</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => updateAnonymousUsage(!anonymousUsage)}
+                                            className={cn(
+                                                "relative w-11 h-6 rounded-full transition-colors",
+                                                anonymousUsage ? "bg-white/[0.2]" : "bg-slate-700"
+                                            )}
+                                        >
+                                            <span
+                                                className={cn(
+                                                    "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                                                    anonymousUsage && "translate-x-5"
+                                                )}
+                                            />
                                         </button>
                                     </div>
                                 </div>

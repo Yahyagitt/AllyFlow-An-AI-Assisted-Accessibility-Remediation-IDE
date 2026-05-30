@@ -21,7 +21,7 @@ const IMPACT_CONFIG: Record<Impact, {
     critical: { icon: XCircle, label: "Critical", border: "border-red-500/30", badge: "bg-red-500/10 text-red-400 border-red-500/20", text: "text-red-400" },
     serious: { icon: AlertTriangle, label: "Serious", border: "border-orange-500/30", badge: "bg-orange-500/10 text-orange-400 border-orange-500/20", text: "text-orange-400" },
     moderate: { icon: Info, label: "Moderate", border: "border-yellow-500/30", badge: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", text: "text-yellow-400" },
-    minor: { icon: CheckCircle2, label: "Minor", border: "border-blue-500/30", badge: "bg-blue-500/10 text-blue-400 border-blue-500/20", text: "text-blue-400" },
+    minor: { icon: CheckCircle2, label: "Minor", border: "border-[#2222E3]/30", badge: "bg-[#2222E3]/10 text-[#2222E3] border-[#2222E3]/20", text: "text-[#2222E3]" },
 };
 
 // ─── Accessibility Row ────────────────────────────────────────────────────────
@@ -61,8 +61,8 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
 
     return (
         // Only gray out the card if isFullyResolved is true!
-        <div className={cn("rounded-lg border bg-slate-800/40 transition-opacity", cfg.border, isFullyResolved && "opacity-50")}>
-            <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-slate-700/20 transition-colors rounded-lg">
+        <div className={cn("rounded-lg border bg-white/[0.02] transition-opacity", cfg.border, isFullyResolved && "opacity-50")}>
+            <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-white/[0.04] transition-colors rounded-lg">
                 <Icon className={cn("w-3.5 h-3.5 flex-shrink-0", cfg.text)} aria-hidden />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -107,7 +107,7 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
                             <button
                                 onClick={handleFixClick}
                                 disabled={isHealing || !selectedNode}
-                                className={cn("flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all duration-150", isHealing ? "bg-slate-700/50 border-slate-600 text-slate-400 cursor-not-allowed" : "bg-violet-600/80 border-violet-500/50 text-white hover:bg-violet-500 active:scale-95 shadow-sm")}
+                                className={cn("flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all duration-150", isHealing ? "bg-slate-700/50 border-slate-600 text-slate-400 cursor-not-allowed" : "bg-[#2222E3]/80 border-[#2222E3]/50 text-white hover:bg-[#2222E3] active:scale-95 shadow-sm")}
                             >
                                 {isHealing ? <><Loader2 className="w-3 h-3 animate-spin" />Healing…</> : <><Wand2 className="w-3 h-3" />Fix with AI</>}
                             </button>
@@ -123,7 +123,7 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
 function SeoRow({ check }: { check: SeoCheck }) {
     const isPass = check.status === "pass";
     return (
-        <div className={cn("rounded-lg border bg-slate-800/40 p-3.5", isPass ? "border-emerald-500/30" : "border-red-500/30 bg-red-500/5")}>
+        <div className={cn("rounded-lg border bg-white/[0.02] p-3.5", isPass ? "border-emerald-500/30" : "border-red-500/30 bg-red-500/5")}>
             <div className="flex items-start gap-3">
                 {isPass ? <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
@@ -173,15 +173,15 @@ export default function AuditResults({
     return (
         <section className="flex flex-col h-full overflow-hidden" aria-label="Audit results">
             {/* Panel header with View Toggle */}
-            <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700/50 flex-shrink-0 min-h-[48px]">
+            <div className="flex items-center justify-between px-4 py-2 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[48px]">
                 {status === "complete" ? (
                     <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700/50">
                         <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{violations.length}</span></button>
                         <button onClick={() => setView("seo")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "seo" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>SEO Health<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{seoResults.filter(s => s.status === "fail").length}</span></button>
                         <button onClick={() => setView("bp")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "bp" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Best Practices<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{bpViolations.reduce((s, v) => s + v.nodes.length, 0)}</span></button>
                     </div>
-                ) : <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Scan Results</span>}
-                {healStatus === "healing" && view === "a11y" && <span className="flex items-center gap-1 text-[11px] text-violet-400 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" />Healing…</span>}
+                ) : <span className="text-xs font-normal text-slate-300 uppercase tracking-widest">Scan Results</span>}
+                {healStatus === "healing" && view === "a11y" && <span className="flex items-center gap-1 text-[11px] text-[#2222E3] animate-pulse"><Loader2 className="w-3 h-3 animate-spin" />Healing…</span>}
             </div>
 
             {status === "complete" && view === "a11y" && violations.length > 0 && (
@@ -210,7 +210,7 @@ export default function AuditResults({
                 {status === "scanning" && (
                     <div className="flex flex-col gap-2 pt-2">
                         {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className="rounded-lg border border-slate-700/30 bg-slate-800/20 p-3.5 space-y-3">
+                            <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3.5 space-y-3">
                                 <div className="flex items-center gap-2.5"><Skeleton className="w-3.5 h-3.5 rounded-full bg-slate-700/50 flex-shrink-0" /><Skeleton className="h-4 w-16 bg-slate-700/50" /><Skeleton className="h-3 w-24 bg-slate-700/50" /></div>
                                 <Skeleton className="h-3 w-3/4 bg-slate-700/50" />
                             </div>
