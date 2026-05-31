@@ -14,7 +14,8 @@ import {
     X, ArrowRight, ShieldAlert, SearchCheck, FileCode2, Eye,
     Type, WrapText, Settings, BarChart3, List, Clock, Zap,
     Sparkles, Bug, Keyboard, Monitor, Lightbulb, History,
-    Loader2, Upload, Trash2, Indent, Shield
+    Loader2, Upload, Trash2, Indent, Shield,
+    PanelLeftClose, PanelLeftOpen, Sun, Moon
 } from "lucide-react";
 import { useSettings } from "@/lib/useSettings";
 import { cn } from "@/lib/utils";
@@ -226,8 +227,9 @@ const StatCard = memo(function StatCard({
 });
 
 export default function DashboardPage() {
-    const { fontSize, wordWrap, tabSize, minimap, anonymousUsage, updateFontSize, updateWordWrap, updateTabSize, updateMinimap, updateAnonymousUsage, clearScanData } = useSettings();
+    const { fontSize, wordWrap, tabSize, minimap, anonymousUsage, editorTheme, updateFontSize, updateWordWrap, updateTabSize, updateMinimap, updateAnonymousUsage, updateEditorTheme, clearScanData } = useSettings();
     const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const { scansToday, incrementScans } = useDailyScans();
 
     const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
@@ -269,13 +271,14 @@ export default function DashboardPage() {
         a11yScore: number;
         seoScore: number;
     }
-    const [recentScans, setRecentScans] = useState<RecentScan[]>(() => {
-        if (typeof window === "undefined") return [];
+    const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
+
+    useEffect(() => {
         try {
             const stored = sessionStorage.getItem("allyflow-recent-scans");
-            return stored ? JSON.parse(stored) : [];
-        } catch { return []; }
-    });
+            if (stored) setRecentScans(JSON.parse(stored));
+        } catch { /* ignore */ }
+    }, []);
 
     // ── Scan duration ──
     const scanStartTime = useRef<number>(0);
@@ -349,7 +352,7 @@ export default function DashboardPage() {
             // ── Save to recent scans ──
             const newScan: RecentScan = {
                 url,
-                timestamp: new Date().toLocaleString(),
+                timestamp: new Date().toLocaleString(undefined, { hour12: true }),
                 violations: data.violations.length,
                 a11yScore: Math.max(0, 100 - data.violations.reduce((d, v) => {
                     if (v.impact === "critical") return d + 10;
@@ -370,7 +373,7 @@ export default function DashboardPage() {
 
             // Toast: Success
             toast.success("Audit Complete!", {
-                description: `Found ${data.violations.length} A11y issues and processed ${data.seoResults?.length || 0} SEO checks.`
+                description: `Found ${data.violations.length} Ally issues and processed ${data.seoResults?.length || 0} SEO checks.`
             });
 
             // ── AUTO-TRIGGER BEST PRACTICES SCAN ──
@@ -407,6 +410,16 @@ export default function DashboardPage() {
             toast.error("Audit Failed", { description: msg });
         }
     }, [incrementScans]);
+
+    const handleRescan = useCallback(() => {
+        if (!scannedUrl || !masterHtml) return;
+        const savedA11y = new Set(resolvedIds);
+        const savedBp = new Set(bpResolvedIds);
+        handleScan(scannedUrl, masterHtml).then(() => {
+            setResolvedIds(prev => new Set([...savedA11y, ...prev]));
+            setBpResolvedIds(prev => new Set([...savedBp, ...prev]));
+        });
+    }, [scannedUrl, masterHtml, handleScan, resolvedIds, bpResolvedIds]);
 
     // Add nodeId to the signature
     const handleFix = useCallback(async (violation: AxeViolation, nodeHtml: string, nodeId: string) => {
@@ -978,7 +991,7 @@ export default function DashboardPage() {
                                     {/* Score Cards */}
                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                                         <StatCard
-                                            label="A11y Score"
+                                            label="Ally Score"
                                             value={`${a11yScore}%`}
                                             color={a11yScore > 80 ? "text-emerald-400" : a11yScore > 50 ? "text-yellow-400" : "text-red-400"}
                                             subtitle="WCAG 2.1 AA Health"
@@ -1007,6 +1020,9 @@ export default function DashboardPage() {
                                     {recentScans.length > 1 && (() => {
                                         const prev = recentScans[1];
                                         const curr = recentScans[0];
+                                        const diff = curr.a11yScore - prev.a11yScore;
+                                        const currTime = curr.timestamp;
+                                        const prevTime = prev.timestamp;
                                         return (
                                             <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6 mb-6">
                                                 <h3 className="text-sm font-normal text-slate-200 flex items-center gap-2 mb-5">
@@ -1014,112 +1030,104 @@ export default function DashboardPage() {
                                                     Scan Comparison
                                                 </h3>
                                                 <div className="grid grid-cols-2 gap-6">
-                                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-300 hover:bg-white/[0.04]">
-                                                        <div className="text-sm text-slate-500 mb-2 truncate font-normal" title={prev.url}>{prev.url}</div>
-                                                        <div className="flex items-center gap-6 mt-3">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", prev.a11yScore > 80 ? "text-emerald-400" : prev.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.a11yScore}%</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">A11y</span>
-                                                            </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", prev.seoScore === 100 ? "text-emerald-400" : prev.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.seoScore}%</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">SEO</span>
-                                                            </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="text-2xl font-normal text-orange-400">{prev.violations}</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">Issues</span>
-                                                            </div>
+                                                    <div className={cn("rounded-lg border p-5 transition-all duration-300 hover:bg-white/[0.04]", diff < 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Latest</span>
+                                                            {diff > 0 && <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Improved</span>}
                                                         </div>
-                                                        <div className="text-xs text-slate-600 mt-3">{prev.timestamp}</div>
-                                                    </div>
-                                                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-300 hover:bg-white/[0.04]">
-                                                        <div className="text-sm text-slate-500 mb-2 truncate font-normal" title={curr.url}>{curr.url}</div>
-                                                        <div className="flex items-center gap-6 mt-3">
+                                                        <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={curr.url}>{curr.url}</div>
+                                                        <div className="flex items-center gap-6">
                                                             <div className="flex flex-col items-center">
                                                                 <span className={cn("text-2xl font-normal", curr.a11yScore > 80 ? "text-emerald-400" : curr.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.a11yScore}%</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">A11y</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
                                                             </div>
                                                             <div className="flex flex-col items-center">
                                                                 <span className={cn("text-2xl font-normal", curr.seoScore === 100 ? "text-emerald-400" : curr.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.seoScore}%</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">SEO</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
                                                             </div>
                                                             <div className="flex flex-col items-center">
                                                                 <span className="text-2xl font-normal text-orange-400">{curr.violations}</span>
-                                                                <span className="text-xs text-slate-500 mt-0.5">Issues</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
                                                             </div>
                                                         </div>
-                                                        <div className="text-xs text-slate-600 mt-3">{curr.timestamp}</div>
+                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
+                                                            <Clock className="w-3 h-3" />
+                                                            {currTime}
+                                                        </div>
+                                                    </div>
+                                                    <div className={cn("rounded-lg border p-5 transition-all duration-300 hover:bg-white/[0.04]", diff > 0 ? "border-red-500/30 bg-red-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Previous</span>
+                                                            {diff < 0 && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Declined</span>}
+                                                        </div>
+                                                        <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={prev.url}>{prev.url}</div>
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", prev.a11yScore > 80 ? "text-emerald-400" : prev.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.a11yScore}%</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-center">
+                                                                <span className={cn("text-2xl font-normal", prev.seoScore === 100 ? "text-emerald-400" : prev.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.seoScore}%</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-2xl font-normal text-orange-400">{prev.violations}</span>
+                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
+                                                            <Clock className="w-3 h-3" />
+                                                            {prevTime}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                {(() => {
-                                                    const diff = curr.a11yScore - prev.a11yScore;
-                                                    if (diff === 0) return <div className="text-center text-sm text-slate-500 mt-4">Scores are identical</div>;
-                                                    return (
-                                                        <div className={cn("text-center text-sm font-medium mt-4", diff > 0 ? "text-emerald-400" : "text-red-400")}>
-                                                            {curr.url} is {diff > 0 ? "▲" : "▼"} {Math.abs(diff)} pts {diff > 0 ? "better" : "worse"} than {prev.url}
-                                                        </div>
-                                                    );
-                                                })()}
+                                                {diff === 0 ? (
+                                                    <div className="text-center text-sm text-slate-500 mt-4">Scores are identical</div>
+                                                ) : (
+                                                    <div className={cn("text-center text-sm font-medium mt-4", diff > 0 ? "text-emerald-400" : "text-red-400")}>
+                                                        {diff > 0 ? "▲" : "▼"} {Math.abs(diff)} pts {diff > 0 ? "better" : "worse"}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })()}
 
-                                    {/* ── Violation Breakdown ── */}
+                                    {/* ── Violation Breakdown (Bar Chart) ── */}
                                     {violations.length > 0 && (() => {
                                         const counts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
                                         violations.forEach(v => { if (v.impact) counts[v.impact]++; });
                                         const total = violations.length;
                                         const segments = [
-                                            { key: "critical", label: "Critical", count: counts.critical, color: "#ef4444", textColor: "text-red-400", barColor: "bg-red-500" },
-                                            { key: "serious", label: "Serious", count: counts.serious, color: "#f97316", textColor: "text-orange-400", barColor: "bg-orange-500" },
-                                            { key: "moderate", label: "Moderate", count: counts.moderate, color: "#eab308", textColor: "text-yellow-400", barColor: "bg-yellow-500" },
-                                            { key: "minor", label: "Minor", count: counts.minor, color: "#64748b", textColor: "text-slate-400", barColor: "bg-slate-500" },
+                                            { key: "critical", label: "Critical", count: counts.critical, color: "#ef4444", barColor: "bg-red-500" },
+                                            { key: "serious", label: "Serious", count: counts.serious, color: "#f97316", barColor: "bg-orange-500" },
+                                            { key: "moderate", label: "Moderate", count: counts.moderate, color: "#eab308", barColor: "bg-yellow-500" },
+                                            { key: "minor", label: "Minor", count: counts.minor, color: "#64748b", barColor: "bg-slate-500" },
                                         ];
-                                        const cx = 80, cy = 80, r = 58, sw = 14;
-                                        const circ = 2 * Math.PI * r;
-                                        let cumulative = 0;
-                                        const arcs = segments.map(s => {
-                                            const prop = total > 0 ? s.count / total : 0;
-                                            const len = prop * circ;
-                                            const offset = -cumulative;
-                                            cumulative += len;
-                                            return { ...s, prop, len, offset };
-                                        });
+                                        const maxCount = Math.max(...segments.map(s => s.count), 1);
                                         return (
                                             <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 mb-6">
                                                 <h3 className="text-sm font-normal text-slate-200 mb-4 flex items-center gap-2">
                                                     <BarChart3 className="w-4 h-4 text-[#2222E3]" />
                                                     Violation Breakdown
                                                 </h3>
-                                                <div className="flex items-center gap-10">
-                                                    <div className="relative flex-shrink-0">
-                                                        <svg width="160" height="160" viewBox="0 0 160 160" className="-rotate-90">
-                                                            <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={sw} />
-                                                            {arcs.map(a => a.count > 0 && (
-                                                                <circle key={a.key} cx={cx} cy={cy} r={r} fill="none" stroke={a.color} strokeWidth={sw}
-                                                                    strokeDasharray={`${a.len} ${circ - a.len}`}
-                                                                    strokeDashoffset={a.offset}
-                                                                    strokeLinecap="butt"
-                                                                    className="transition-all duration-700"
-                                                                />
-                                                            ))}
-                                                        </svg>
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <div className="text-center">
-                                                                <div className="text-3xl font-normal text-slate-100">{total}</div>
-                                                                <div className="text-xs text-slate-500">Total</div>
-                                                            </div>
+                                                <div className="flex items-end gap-3 h-32 mb-3">
+                                                    {segments.map(s => (
+                                                        <div key={s.key} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                                                            <span className="text-xs font-normal text-slate-300">{s.count}</span>
+                                                            <div
+                                                                className="w-full rounded-t-md transition-all duration-500"
+                                                                style={{
+                                                                    height: `${(s.count / maxCount) * 100}%`,
+                                                                    backgroundColor: s.color,
+                                                                    minHeight: s.count > 0 ? '4px' : '0px',
+                                                                }}
+                                                            />
+                                                            <span className="text-[10px] text-slate-500 text-center">{s.label}</span>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex-1 grid grid-cols-2 gap-x-8 gap-y-3">
-                                                        {segments.map(s => (
-                                                            <div key={s.key} className="flex items-center gap-3">
-                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                                                                <span className="text-sm text-slate-400 flex-1">{s.label}</span>
-                                                                <span className={cn("text-sm font-normal", s.textColor)}>{s.count}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                    ))}
+                                                </div>
+                                                <div className="text-center text-xs text-slate-500">
+                                                    {total} total violation{total !== 1 ? 's' : ''}
                                                 </div>
                                             </div>
                                         );
@@ -1188,7 +1196,14 @@ export default function DashboardPage() {
                     <div className="flex flex-col h-full bg-[#111113] animate-in fade-in duration-300">
                         {/* IDE Header */}
                         <header className="flex items-center justify-between px-4 h-14 bg-[#111113] border-b border-white/[0.06] flex-shrink-0">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                    className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/[0.06] text-slate-500 hover:text-slate-300 transition-all"
+                                    title={sidebarCollapsed ? "Show violations panel" : "Hide violations panel"}
+                                >
+                                    {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+                                </button>
                                 <Activity className="w-4 h-4 text-[#2222E3]" />
                                 <span className="text-sm font-normal text-slate-200">Remediation Studio</span>
                                 {scannedUrl && (
@@ -1246,7 +1261,10 @@ export default function DashboardPage() {
                         {/* Split Panes */}
                         <div className="flex-1 flex flex-row min-h-0">
                             {/* Left: Violation List */}
-                            <div className="w-[450px] flex flex-col min-h-0 border-r border-white/[0.06] bg-[#111113] shadow-2xl z-10">
+                            <div className={cn(
+                                "flex flex-col min-h-0 border-r border-white/[0.06] bg-[#111113] shadow-2xl z-10 transition-[width] duration-300 ease-in-out overflow-hidden",
+                                sidebarCollapsed ? "w-0 border-r-0" : "w-[450px]"
+                            )}>
                                 {healError && (
                                     <div className="p-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex gap-2">
                                         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -1270,6 +1288,17 @@ export default function DashboardPage() {
                                 />
                             </div>
 
+                            {/* Expand handle when collapsed */}
+                            {sidebarCollapsed && (
+                                <button
+                                    onClick={() => setSidebarCollapsed(false)}
+                                    className="flex items-center justify-center w-5 h-20 my-auto bg-[#111113] border-r border-white/[0.06] hover:bg-white/[0.04] text-slate-500 hover:text-slate-300 transition-all rounded-r-md cursor-pointer flex-shrink-0"
+                                    title="Show violations panel"
+                                >
+                                    <PanelLeftOpen className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+
                             {/* Right: Monaco Editor */}
                             <div className="flex-1 flex flex-col min-h-0 bg-[#111113]">
                                 <DiffViewer
@@ -1282,8 +1311,11 @@ export default function DashboardPage() {
                                     wordWrap={wordWrap}
                                     tabSize={tabSize}
                                     minimap={minimap}
+                                    theme={editorTheme}
                                     onApplyFix={handleApplyFix}
                                     onRefix={handleRefix}
+                                    onRescan={masterHtml && scannedUrl ? handleRescan : undefined}
+                                    onToggleTheme={() => updateEditorTheme(editorTheme === "vs-dark" ? "vs" : "vs-dark")}
                                 />
                             </div>
                         </div>

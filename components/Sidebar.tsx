@@ -5,7 +5,6 @@ import {
     Activity,
     Shield,
     Settings,
-    Zap,
     ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
@@ -45,8 +44,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 href="/"
                 className="flex items-center gap-3 px-4 py-5 border-b border-white/[0.06] hover:opacity-80 transition-opacity"
             >
-                <div className="relative flex-shrink-0 w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
+                <div className="relative flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src="/logo.jpeg" alt="AllyFlow" className="w-full h-full object-contain" />
                 </div>
                 {!collapsed && (
                     <span className="text-white font-normal text-2xl tracking-tight select-none">

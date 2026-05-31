@@ -1,9 +1,10 @@
 "use client";
 import {
     Code2, FileCode, SplitSquareHorizontal,
-    Sparkles, ClipboardCheck,
+    Sparkles, ClipboardCheck, RefreshCw, Sun, Moon,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import type { ScanStatus } from "./UrlInputBar";
 import type { HealResponse } from "@/lib/scan-types";
 import dynamic from "next/dynamic";
@@ -22,11 +23,23 @@ function MonacoLoadingPlaceholder() {
     );
 }
 
+const SCROLLBAR_OPTIONS = {
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
+    verticalSliderSize: 6,
+    horizontalSliderSize: 6,
+    alwaysConsumeMouseWheel: false,
+};
+
 const BASE_MONACO_OPTIONS: any = {
     readOnly: false,
     originalEditable: false,
     renderSideBySide: true,
     scrollBeyondLastLine: false,
+    overviewRulerLanes: 0,
+    overviewRulerBorder: false,
+    hideCursorInOverviewRuler: true,
+    scrollbar: SCROLLBAR_OPTIONS,
 };
 
 const IDLE_BEFORE = ``.trim();
@@ -42,8 +55,11 @@ interface DiffViewerProps {
     wordWrap?: "on" | "off";
     tabSize?: 2 | 4 | 8;
     minimap?: boolean;
+    theme?: "vs-dark" | "vs";
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
     onRefix?: () => void;
+    onRescan?: () => void;
+    onToggleTheme?: () => void;
 }
 
 export default function DiffViewer({
@@ -56,8 +72,11 @@ export default function DiffViewer({
     wordWrap = "on",
     tabSize = 4,
     minimap = false,
+    theme = "vs-dark",
     onApplyFix,
     onRefix,
+    onRescan,
+    onToggleTheme,
 }: DiffViewerProps) {
     const [mounted, setMounted] = useState(false);
     const diffEditorRef = useRef<any>(null);
@@ -74,19 +93,27 @@ export default function DiffViewer({
 
     useEffect(() => { setMounted(true); }, []);
 
+    const updateSubEditors = useCallback((editor: any) => {
+        if (!editor) return;
+        const original = editor.getOriginalEditor();
+        const modified = editor.getModifiedEditor();
+        const opts = { wordWrap, scrollbar: SCROLLBAR_OPTIONS };
+        if (original) original.updateOptions(opts);
+        if (modified) modified.updateOptions(opts);
+    }, [wordWrap]);
+
     useEffect(() => {
         setHasManualEdits(false);
-    }, [beforeCode, healResult]);
+        updateSubEditors(diffEditorRef.current);
+    }, [beforeCode, healResult, wordWrap]);
 
     const handleEditorMount = useCallback((editor: any) => {
         if (!editor) return;
         diffEditorRef.current = editor;
 
-        const original = editor.getOriginalEditor();
+        updateSubEditors(editor);
         const modified = editor.getModifiedEditor();
-        if (original) original.updateOptions({ wordWrap });
         if (modified) {
-            modified.updateOptions({ wordWrap });
             modified.onDidChangeModelContent(() => {
                 setHasManualEdits(true);
             });
@@ -160,21 +187,42 @@ export default function DiffViewer({
 
     return (
         <section className="flex flex-col h-full bg-[#111113] border-l border-white/[0.06]" aria-label="Code diff viewer">
-            <div className="flex items-center justify-between px-4 py-2 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[48px]">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[38px]">
+                <div className="flex items-center gap-2">
                     <SplitSquareHorizontal className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-normal text-slate-300 uppercase tracking-widest">
                         Master Document
                     </span>
+                    {onRescan && (
+                        <button
+                            type="button"
+                            onClick={onRescan}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700 active:scale-95 transition-all"
+                            title="Re-scan current URL"
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                            Re-Scan
+                        </button>
+                    )}
+                    {onToggleTheme && (
+                        <button
+                            type="button"
+                            onClick={onToggleTheme}
+                            className="flex items-center justify-center w-6 h-6 rounded-lg hover:bg-white/[0.06] text-slate-500 hover:text-slate-300 transition-all"
+                            title={theme === "vs-dark" ? "Switch to light theme" : "Switch to dark theme"}
+                        >
+                            {theme === "vs-dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                        </button>
+                    )}
                     {hasHealResult && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 border bg-[#2222E3]/10 border-[#2222E3]/25 text-[#2222E3]">
-                            <Sparkles className="w-2.5 h-2.5" /> Pending Fix
+                        <span className="inline-flex items-center gap-0.5 text-[11px] font-medium rounded-full px-1.5 py-0.5 border bg-[#2222E3]/10 border-[#2222E3]/25 text-[#2222E3]">
+                            <Sparkles className="w-2 h-2" /> Pending Fix
                         </span>
                     )}
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="hidden sm:flex items-center gap-3 text-[11px]">
+                <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex items-center gap-2 text-[11px]">
                         <span className="flex items-center gap-1 text-red-400/70"><FileCode className="w-3 h-3" /> Original File</span>
                         <span className="text-slate-600">→</span>
                         <span className="flex items-center gap-1 text-emerald-400/70"><Code2 className="w-3 h-3" /> Fixed (Editable)</span>
@@ -184,9 +232,9 @@ export default function DiffViewer({
                         <button
                             type="button"
                             onClick={handleApplyClick}
-                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-emerald-600 border border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 transition-all shadow-sm shadow-emerald-900/50"
+                            className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-600 border border-emerald-500 text-white hover:bg-emerald-500 active:scale-95 transition-all shadow-sm shadow-emerald-900/50"
                         >
-                            <ClipboardCheck className="w-3.5 h-3.5" />
+                            <ClipboardCheck className="w-3 h-3" />
                             Apply Fix to Document
                         </button>
                     )}
@@ -202,11 +250,11 @@ export default function DiffViewer({
                 </div>
             </div>
 
-            <div className="relative flex-1 min-h-0 bg-[#111113]">
+            <div className={cn("relative flex-1 min-h-0", theme === "vs" ? "bg-white" : "bg-[#111113]")}>
                 {isHealing && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#111113]/80 backdrop-blur-sm">
+                    <div className={cn("absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 backdrop-blur-sm", theme === "vs" ? "bg-white/80" : "bg-[#111113]/80")}>
                         <div className="w-10 h-10 rounded-full border-2 border-[#2222E3]/30 border-t-[#2222E3] animate-spin" />
-                        <p className="text-sm font-medium text-slate-300">Generating contextual fix…</p>
+                        <p className={cn("text-sm font-medium", theme === "vs" ? "text-slate-600" : "text-slate-300")}>Generating contextual fix…</p>
                     </div>
                 )}
                 {showEditor ? (
@@ -215,7 +263,7 @@ export default function DiffViewer({
                         language="html"
                         original={originalHtml}
                         modified={modifiedHtml}
-                        theme="vs-dark"
+                        theme={theme}
                         options={monacoOptions}
                         onMount={handleEditorMount}
                     />

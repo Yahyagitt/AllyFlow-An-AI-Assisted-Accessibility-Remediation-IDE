@@ -8,6 +8,7 @@ interface Settings {
   tabSize: 2 | 4 | 8;
   minimap: boolean;
   anonymousUsage: boolean;
+  editorTheme: "vs-dark" | "vs";
 }
 
 const STORAGE_KEY = "allyflow-settings";
@@ -18,6 +19,7 @@ const DEFAULTS: Settings = {
   tabSize: 4,
   minimap: false,
   anonymousUsage: true,
+  editorTheme: "vs-dark",
 };
 
 function loadSettings(): Settings {
@@ -67,6 +69,10 @@ export function useSettings() {
     setSettings((prev) => ({ ...prev, anonymousUsage }));
   }, []);
 
+  const updateEditorTheme = useCallback((editorTheme: "vs-dark" | "vs") => {
+    setSettings((prev) => ({ ...prev, editorTheme }));
+  }, []);
+
   const clearScanData = useCallback(() => {
     if (typeof window === "undefined") return;
     try {
@@ -83,6 +89,7 @@ export function useSettings() {
     updateTabSize,
     updateMinimap,
     updateAnonymousUsage,
+    updateEditorTheme,
     clearScanData,
   };
 }

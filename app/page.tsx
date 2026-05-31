@@ -115,8 +115,8 @@ export default function LandingPage() {
             >
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2222E3]">
-                            <Zap className="h-5 w-5 text-white" strokeWidth={2.5} />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden">
+                            <img src="/logo.jpeg" alt="AllyFlow" className="w-full h-full object-contain" />
                         </div>
                         <span className="text-white font-normal text-2xl tracking-tight">
                             AllyFlow
@@ -376,7 +376,7 @@ export default function LandingPage() {
                 <div className="mx-auto max-w-6xl px-6 py-10">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <Zap className="h-4 w-4 text-[#2222E3]" strokeWidth={2} />
+                            <img src="/logo.jpeg" alt="AllyFlow" className="h-4 w-4 object-contain" />
                             <span>AllyFlow</span>
                             <span className="text-slate-600">—</span>
                             <span>Built for a more accessible web.</span>

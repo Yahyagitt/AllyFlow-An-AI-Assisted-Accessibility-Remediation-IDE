@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     description:
         "Stop auditing. Start fixing. AllyFlow is an AI-assisted IDE that scans web pages for WCAG 2.1 AA violations and drafts fixes using Gemini AI. Powered by axe-core, Monaco editor, and a deterministic offline fallback engine.",
     keywords: ["accessibility", "a11y", "WCAG", "audit", "AI", "axe-core", "remediation", "allyflow"],
+    icons: {
+        icon: "/logo.jpeg",
+    },
 };
 
 export default function RootLayout({

@@ -6,7 +6,7 @@ import {
     Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ScanStatus } from "./UrlInputBar";
 import type { AxeViolation, HealStatus, SeoCheck } from "@/lib/scan-types";
@@ -18,10 +18,10 @@ type Impact = "critical" | "serious" | "moderate" | "minor";
 const IMPACT_CONFIG: Record<Impact, {
     icon: React.ElementType; label: string; border: string; badge: string; text: string;
 }> = {
-    critical: { icon: XCircle, label: "Critical", border: "border-red-500/30", badge: "bg-red-500/10 text-red-400 border-red-500/20", text: "text-red-400" },
-    serious: { icon: AlertTriangle, label: "Serious", border: "border-orange-500/30", badge: "bg-orange-500/10 text-orange-400 border-orange-500/20", text: "text-orange-400" },
-    moderate: { icon: Info, label: "Moderate", border: "border-yellow-500/30", badge: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", text: "text-yellow-400" },
-    minor: { icon: CheckCircle2, label: "Minor", border: "border-[#2222E3]/30", badge: "bg-[#2222E3]/10 text-[#2222E3] border-[#2222E3]/20", text: "text-[#2222E3]" },
+    critical: { icon: XCircle, label: "Critical", border: "border-red-500/30", badge: "bg-red-500/80 text-white border-red-500/30", text: "text-red-400" },
+    serious: { icon: AlertTriangle, label: "Serious", border: "border-orange-500/30", badge: "bg-orange-500/80 text-white border-orange-500/30", text: "text-orange-400" },
+    moderate: { icon: Info, label: "Moderate", border: "border-yellow-500/30", badge: "bg-yellow-500/80 text-white border-yellow-500/30", text: "text-yellow-400" },
+    minor: { icon: CheckCircle2, label: "Minor", border: "border-blue-500/30", badge: "bg-blue-500/80 text-white border-blue-500/30", text: "text-blue-400" },
 };
 
 // ─── Accessibility Row ────────────────────────────────────────────────────────
@@ -60,32 +60,35 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
     }, [v, selectedNode, onFix, activeNodeId]);
 
     return (
-        // Only gray out the card if isFullyResolved is true!
-        <div className={cn("rounded-lg border bg-white/[0.02] transition-opacity", cfg.border, isFullyResolved && "opacity-50")}>
-            <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-white/[0.04] transition-colors rounded-lg">
-                <Icon className={cn("w-3.5 h-3.5 flex-shrink-0", cfg.text)} aria-hidden />
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={cn("text-[10px] font-bold uppercase tracking-wider", cfg.text)}>{cfg.label}</span>
-                        {wcagTags.map((tag) => <span key={tag} className="text-[10px] text-slate-500 bg-slate-700/50 rounded px-1 py-0.5">{tag}</span>)}
-                        {isFullyResolved && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 rounded-full px-1.5 py-0.5"><CheckCircle2 className="w-2.5 h-2.5" /> All Fixed</span>}
-                    </div>
-                    <p className="text-xs font-medium text-slate-300 truncate mt-0.5">{v.help}</p>
+        <div className={cn("rounded-xl border bg-white/[0.03] transition-all duration-200", isFullyResolved ? "border-emerald-500/20 opacity-60" : cfg.border, "hover:bg-white/[0.05]")}>
+            <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors rounded-xl">
+                <div className={cn("flex items-center justify-center w-7 h-7 rounded-lg", isActiveNodeResolved ? "bg-emerald-500/15" : "bg-white/[0.06]")}>
+                    <Icon className={cn("w-3.5 h-3.5", isActiveNodeResolved ? "text-emerald-400" : cfg.text)} aria-hidden />
                 </div>
-                <span className="text-[10px] text-slate-500 mr-1.5 flex-shrink-0">{v.nodes.length}×</span>
-                {expanded ? <ChevronUp className="w-3 h-3 text-slate-500 flex-shrink-0" /> : <ChevronDown className="w-3 h-3 text-slate-500 flex-shrink-0" />}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn("text-[11px] font-bold uppercase tracking-wider", cfg.text)}>{cfg.label}</span>
+                        {wcagTags.map((tag) => <span key={tag} className="text-[10px] text-slate-500 bg-slate-800/80 rounded-md px-1.5 py-0.5 font-mono">{tag}</span>)}
+                        {isFullyResolved && <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 rounded-full px-1.5 py-0.5 font-medium"><CheckCircle2 className="w-2.5 h-2.5" /> All Fixed</span>}
+                    </div>
+                    <p className="text-xs font-medium text-slate-300 truncate mt-1">{v.help}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10px] font-medium text-slate-500 bg-slate-800/60 rounded-md px-2 py-0.5">{v.nodes.length}x</span>
+                    {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                </div>
             </button>
 
             {expanded && (
-                <div className="px-3.5 pb-3.5 pt-2 border-t border-slate-700/40 space-y-2.5">
-                    <p className="text-[11px] text-slate-400 leading-relaxed">{v.description}</p>
+                <div className="px-4 pb-4 pt-2 border-t border-slate-700/30 space-y-3">
+                    <p className="text-[12px] text-slate-400 leading-relaxed">{v.description}</p>
                     {v.nodes.length > 1 && (
-                        <div className="flex gap-1 flex-wrap">
+                        <div className="flex gap-1.5 flex-wrap">
                             {v.nodes.slice(0, 5).map((_, i) => (
                                 <button
                                     key={i}
                                     onClick={() => setSelectedNodeIdx(i)}
-                                    className={cn("text-[10px] rounded px-2 py-0.5 border transition-colors", selectedNodeIdx === i ? "bg-slate-600 border-slate-500 text-slate-200" : "bg-transparent border-slate-700 text-slate-500 hover:text-slate-300")}
+                                    className={cn("text-[10px] font-medium rounded-lg px-2.5 py-1 border transition-colors", selectedNodeIdx === i ? "bg-slate-600 border-slate-500 text-slate-200 shadow-sm" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-slate-300 hover:bg-slate-700/50")}
                                 >
                                     Node {i + 1} {resolvedIds.has(`${v.id}-${i}`) && "✓"}
                                 </button>
@@ -93,21 +96,20 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
                         </div>
                     )}
                     {selectedNode && (
-                        <div className="rounded-md bg-slate-900/70 border border-slate-700/50 p-2.5">
-                            <code className="text-[11px] text-slate-400 break-all leading-relaxed block font-mono">{selectedNode.html}</code>
+                        <div className="rounded-lg bg-slate-900/80 border border-slate-700/40 p-3">
+                            <code className="text-[11px] text-slate-300 break-all leading-relaxed block font-mono">{selectedNode.html}</code>
                         </div>
                     )}
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center justify-between gap-2 pt-1">
                         <a href={v.helpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors">Learn more <ExternalLink className="w-2.5 h-2.5" /></a>
 
-                        {/* Show checkmark only if this specific node is fixed */}
                         {isActiveNodeResolved ? (
-                            <span className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-emerald-500/10 border-emerald-500/20 text-emerald-400"><CheckCircle2 className="w-3 h-3" /> Fixed ✓</span>
+                            <span className="flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg border bg-emerald-500/10 border-emerald-500/20 text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /> Fixed ✓</span>
                         ) : (
                             <button
                                 onClick={handleFixClick}
                                 disabled={isHealing || !selectedNode}
-                                className={cn("flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all duration-150", isHealing ? "bg-slate-700/50 border-slate-600 text-slate-400 cursor-not-allowed" : "bg-[#2222E3]/80 border-[#2222E3]/50 text-white hover:bg-[#2222E3] active:scale-95 shadow-sm")}
+                                className={cn("flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all duration-150", isHealing ? "bg-slate-700/50 border-slate-600 text-slate-400 cursor-not-allowed" : "bg-[#2222E3]/90 border-[#2222E3]/50 text-white hover:bg-[#2222E3] active:scale-95 shadow-sm shadow-[#2222E3]/20")}
                             >
                                 {isHealing ? <><Loader2 className="w-3 h-3 animate-spin" />Healing…</> : <><Wand2 className="w-3 h-3" />Fix with AI</>}
                             </button>
@@ -123,13 +125,18 @@ const ViolationRow = memo(function ViolationRow({ v, resolvedIds, healingViolati
 function SeoRow({ check }: { check: SeoCheck }) {
     const isPass = check.status === "pass";
     return (
-        <div className={cn("rounded-lg border bg-white/[0.02] p-3.5", isPass ? "border-emerald-500/30" : "border-red-500/30 bg-red-500/5")}>
-            <div className="flex items-start gap-3">
-                {isPass ? <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />}
+        <div className={cn("rounded-xl border bg-white/[0.03] p-4 transition-all duration-200 hover:bg-white/[0.05]", isPass ? "border-emerald-500/20" : "border-red-500/20 bg-red-500/[0.03]")}>
+            <div className="flex items-start gap-3.5">
+                <div className={cn("flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 mt-0.5", isPass ? "bg-emerald-500/10" : "bg-red-500/10")}>
+                    {isPass ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
+                </div>
                 <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{check.title}</h4>
-                    <p className="text-[11px] text-slate-400 mt-1 mb-2 leading-relaxed">{check.description}</p>
-                    <div className="text-[10px] bg-slate-900/80 rounded px-2.5 py-2 font-mono text-slate-300 border border-slate-700/50 break-all">{check.actualValue || "No value found"}</div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{check.title}</h4>
+                        <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-md", isPass ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>{isPass ? "Pass" : "Fail"}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed mb-2.5">{check.description}</p>
+                    <div className="text-[11px] bg-slate-900/80 rounded-lg px-3 py-2 font-mono text-slate-300 border border-slate-700/40 break-all">{check.actualValue || "No value found"}</div>
                 </div>
             </div>
         </div>
@@ -163,11 +170,23 @@ export default function AuditResults({
     const [view, setView] = useState<"a11y" | "seo" | "bp">("a11y");
 
 
+    const unresolvedViolations = useMemo(() =>
+        violations.filter(v => !v.nodes.every((_, i) => resolvedIds.has(`${v.id}-${i}`))),
+    [violations, resolvedIds]);
+
+    const unresolvedBpNodeCount = useMemo(() =>
+        bpViolations.reduce((s, v) => {
+            const total = v.nodes.length;
+            const resolved = v.nodes.filter((_, i) => bpResolvedIds.has(`${v.id}-${i}`)).length;
+            return s + total - resolved;
+        }, 0),
+    [bpViolations, bpResolvedIds]);
+
     const counts = {
-        critical: violations.filter((v) => v.impact === "critical").length,
-        serious: violations.filter((v) => v.impact === "serious").length,
-        moderate: violations.filter((v) => v.impact === "moderate").length,
-        minor: violations.filter((v) => v.impact === "minor" || !v.impact).length,
+        critical: unresolvedViolations.filter((v) => v.impact === "critical").length,
+        serious: unresolvedViolations.filter((v) => v.impact === "serious").length,
+        moderate: unresolvedViolations.filter((v) => v.impact === "moderate").length,
+        minor: unresolvedViolations.filter((v) => v.impact === "minor" || !v.impact).length,
     };
 
     return (
@@ -176,24 +195,24 @@ export default function AuditResults({
             <div className="flex items-center justify-between px-4 py-2 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[48px]">
                 {status === "complete" ? (
                     <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700/50">
-                        <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{violations.length}</span></button>
+                        <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{unresolvedViolations.length}</span></button>
                         <button onClick={() => setView("seo")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "seo" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>SEO Health<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{seoResults.filter(s => s.status === "fail").length}</span></button>
-                        <button onClick={() => setView("bp")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "bp" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Best Practices<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{bpViolations.reduce((s, v) => s + v.nodes.length, 0)}</span></button>
+                        <button onClick={() => setView("bp")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "bp" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Best Practices<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{unresolvedBpNodeCount}</span></button>
                     </div>
-                ) : <span className="text-xs font-normal text-slate-300 uppercase tracking-widest">Scan Results</span>}
+                ) : <span className="text-xs font-normal text-slate-100 uppercase tracking-widest">Scan Results</span>}
                 {healStatus === "healing" && view === "a11y" && <span className="flex items-center gap-1 text-[11px] text-[#2222E3] animate-pulse"><Loader2 className="w-3 h-3 animate-spin" />Healing…</span>}
             </div>
 
-            {status === "complete" && view === "a11y" && violations.length > 0 && (
+            {status === "complete" && view === "a11y" && unresolvedViolations.length > 0 && (
                 <div className="grid grid-cols-4 gap-1.5 px-3 py-2.5 bg-slate-900/40 border-b border-slate-700/30 flex-shrink-0">
                     {(Object.entries(counts) as [Impact, number][]).map(([impact, count]) => {
                         const cfg = IMPACT_CONFIG[impact];
                         return (
                             <div key={impact} className={cn("rounded-md border px-2 py-1.5 text-center", cfg.badge)}>
-                                <div className="text-base font-bold leading-none">{count}</div>
-                                <div className="text-[9px] font-medium opacity-75 mt-0.5 uppercase tracking-wide">{cfg.label}</div>
+                                <div className="text-lg font-normal tracking-tight leading-none">{count}</div>
+                                <div className="text-[9px] font-medium mt-0.5 uppercase tracking-wide">{cfg.label}</div>
                             </div>
-                        );
+                        )
                     })}
                 </div>
             )}

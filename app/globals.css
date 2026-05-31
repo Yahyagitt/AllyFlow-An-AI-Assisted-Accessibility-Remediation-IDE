@@ -123,25 +123,31 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
 
-  ::-webkit-scrollbar-track {
-    background: hsl(222 47% 8%);
-  }
+::-webkit-scrollbar-track {
+  background: hsl(222 47% 8%);
+}
 
-  ::-webkit-scrollbar-thumb {
-    background: hsl(217 32% 28%);
-    border-radius: 3px;
-  }
+::-webkit-scrollbar-thumb {
+  background: hsl(217 32% 28%);
+  border-radius: 999px;
+}
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(217 91% 60% / 0.6);
-  }
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(217 91% 60% / 0.6);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(217 32% 28%) hsl(222 47% 8%);
 }
 
 @layer utilities {
@@ -226,4 +232,22 @@
   background: linear-gradient(90deg, transparent, #3b82f6, #8b5cf6, #3b82f6, transparent);
   animation: scan-pulse 2s ease-in-out infinite;
   filter: blur(1px);
+}
+
+/* Monaco editor force-slim scrollbars — covers all sub-editors */
+.monaco-editor .scrollbar.vertical,
+.monaco-editor .scrollbar.vertical .slider {
+  width: 6px !important;
+}
+.monaco-editor .scrollbar.horizontal,
+.monaco-editor .scrollbar.horizontal .slider {
+  height: 6px !important;
+}
+.monaco-editor .scrollbar.vertical .slider {
+  left: 0 !important;
+  right: 0 !important;
+}
+.monaco-editor .scrollbar.horizontal .slider {
+  top: 0 !important;
+  bottom: 0 !important;
 }
