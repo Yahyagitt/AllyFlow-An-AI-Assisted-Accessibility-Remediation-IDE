@@ -233,7 +233,7 @@ export default function LandingPage() {
                             <img src="/logo.jpeg" alt="AllyFlow" className="w-full h-full object-contain" />
                         </div>
                         <span className="text-white font-normal text-2xl tracking-tight">
-                            AllyFlow
+                            Ally<span className="text-red-400">Flow</span>
                         </span>
                     </div>
                     <nav className="hidden md:flex items-center gap-2 text-sm">
@@ -360,7 +360,7 @@ export default function LandingPage() {
                             <div className="p-8">
                                 <h2 className="text-lg font-normal text-emerald-400 mb-5 flex items-center gap-2">
                                     <Sparkles className="h-5 w-5" />
-                                    With AllyFlow
+                                    <span>With <span className="text-white">Ally</span><span className="text-red-400">Flow</span></span>
                                 </h2>
                                 <ul className="space-y-4 text-sm text-slate-400">
                                     <li className="flex items-start gap-3.5">
@@ -501,7 +501,7 @@ export default function LandingPage() {
                         <div>
                             <div className="flex items-center gap-2 mb-4">
                                 <img src="/logo.jpeg" alt="AllyFlow" className="h-5 w-5 object-contain" />
-                                <span className="text-white font-medium text-sm">AllyFlow</span>
+                                <span className="text-white font-medium text-sm">Ally<span className="text-red-400">Flow</span></span>
                             </div>
                             <p className="text-xs text-slate-500 leading-relaxed max-w-[180px]">
                                 AI-assisted accessibility remediation IDE for building a more inclusive web.
@@ -535,7 +535,7 @@ export default function LandingPage() {
                     </div>
                     <div className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4 text-xs text-slate-500">
-                            <span>&copy; {new Date().getFullYear()} AllyFlow. Built for a more accessible web.</span>
+                            <span>&copy; {new Date().getFullYear()} Ally<span className="text-red-400">Flow</span>. Built for a more accessible web.</span>
                         </div>
                         <a
                             href="https://github.com/Yahyagitt/AllyFlow-An-AI-Assisted-Accessibility-Remediation-IDE"

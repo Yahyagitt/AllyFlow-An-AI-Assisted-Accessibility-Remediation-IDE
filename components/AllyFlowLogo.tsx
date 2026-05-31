@@ -35,7 +35,7 @@ export default function AllyFlowLogo() {
             fill="#FFFFFF"
             opacity={0.15}
           >
-            ALLYFLOW
+            ALLY<tspan fill="#EF4444">FLOW</tspan>
           </text>
 
           {/* Main face */}
@@ -48,7 +48,7 @@ export default function AllyFlowLogo() {
             letterSpacing="12"
             fill="url(#logoWhite)"
           >
-            ALLYFLOW
+            ALLY<tspan fill="#EF4444">FLOW</tspan>
           </text>
         </svg>
       </div>

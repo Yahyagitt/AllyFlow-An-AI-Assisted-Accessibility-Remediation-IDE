@@ -49,7 +49,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 </div>
                 {!collapsed && (
                     <span className="text-white font-normal text-2xl tracking-tight select-none">
-                        AllyFlow
+                        Ally<span className="text-red-400">Flow</span>
                     </span>
                 )}
             </Link>
