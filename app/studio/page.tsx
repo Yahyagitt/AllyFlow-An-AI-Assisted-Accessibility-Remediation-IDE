@@ -8,7 +8,8 @@ import AuditResults from "@/components/AuditResults";
 import DiffViewer from "@/components/DiffViewer";
 import PreviewModal from "@/components/PreviewModal";
 import { toast } from "sonner"; // ── DAY 6: Shadcn Toasts
-import { Progress } from "@/components/ui/progress"; // ── DAY 6: Shadcn Progress
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Activity, Globe, Download, CheckCircle2, AlertTriangle,
     X, ArrowRight, ShieldAlert, SearchCheck, FileCode2, Eye,
@@ -214,15 +215,56 @@ function absolutizeHtml(html: string, scannedUrl: string | null): string {
     return result;
 }
 
+function TiltCard({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+    const ref = useRef<HTMLDivElement>(null);
+
+    function handleMove(e: React.MouseEvent<HTMLDivElement>) {
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        ref.current.style.transform = `perspective(600px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+    }
+
+    function handleLeave() {
+        if (!ref.current) return;
+        ref.current.style.transform = "perspective(600px) rotateY(0deg) rotateX(0deg)";
+    }
+
+    return (
+        <div
+            ref={ref}
+            onMouseMove={handleMove}
+            onMouseLeave={handleLeave}
+            onClick={onClick}
+            className={`group relative overflow-hidden ${className}`}
+            style={{ transition: "box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), translate 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }}
+        >
+            <div className="absolute inset-0 rounded-[inherit] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{
+                    padding: "1px",
+                    background: "linear-gradient(135deg, rgba(34,34,227,0.4), rgba(59,130,246,0.1), rgba(34,34,227,0.4))",
+                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                }}
+            />
+            {children}
+        </div>
+    );
+}
+
 const StatCard = memo(function StatCard({
     label, value, color, subtitle
 }: { label: string; value: number | string; color: string; subtitle: string }) {
     return (
-        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 flex flex-col items-center justify-center text-center shadow-lg transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5 group">
-            <div className={cn("text-4xl font-normal tracking-tight mb-1 transition-all duration-300 group-hover:scale-105", color)}>{value}</div>
-            <div className="text-sm font-bold text-slate-300">{label}</div>
-            <div className="text-[11px] text-slate-500 mt-1">{subtitle}</div>
-        </div>
+        <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06] shadow-lg hover:-translate-y-0.5">
+            <div className="p-5 flex flex-col items-center justify-center text-center">
+                <div className={cn("text-4xl font-normal tracking-tight mb-1 transition-all duration-300 group-hover:scale-105", color)}>{value}</div>
+                <div className="text-sm font-bold text-slate-300">{label}</div>
+                <div className="text-[11px] text-slate-500 mt-1">{subtitle}</div>
+            </div>
+        </TiltCard>
     );
 });
 
@@ -259,6 +301,8 @@ export default function DashboardPage() {
     const [bpResolvedIds, setBpResolvedIds] = useState<Set<string>>(new Set());
 
     const [showPreview, setShowPreview] = useState(false);
+
+    const auditFileInputRef = useRef<HTMLInputElement>(null);
 
     // ── Scan progress stages ──
     const [scanStage, setScanStage] = useState<string>("");
@@ -836,7 +880,7 @@ export default function DashboardPage() {
 
                 {/* ── VIEW 1: DASHBOARD ── */}
                 {activeTab === "dashboard" && (
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto animate-fade-in-up-smooth">
                         <div className="max-w-4xl mx-auto pt-20 px-8 pb-12">
                             <div className="text-center mb-10 space-y-3">
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#2222E3]/10 border border-[#2222E3]/20 text-[#2222E3] mb-2 shadow-[0_0_40px_-10px_rgba(34,34,227,0.3)]">
@@ -854,19 +898,21 @@ export default function DashboardPage() {
 
                             {/* ── Scan Progress Stages ── */}
                             {scanStatus === "scanning" && (
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6 mb-8">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <Loader2 className="w-5 h-5 text-[#2222E3] animate-spin" />
-                                        <span className="text-sm font-normal text-slate-200">Audit in Progress</span>
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06] mb-8">
+                                    <div className="p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Loader2 className="w-5 h-5 text-[#2222E3] animate-spin" />
+                                            <span className="text-sm font-normal text-slate-200">Audit in Progress</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-700/50 rounded-full overflow-hidden mb-3">
+                                            <div className="h-full w-full bg-gradient-to-r from-[#2222E3] to-[#2222E3] rounded-full animate-pulse" style={{ animationDuration: "1.5s" }} />
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                            <span className="inline-block w-2 h-2 rounded-full bg-[#2222E3] animate-pulse" />
+                                            {scanStage || "Initializing…"}
+                                        </div>
                                     </div>
-                                    <div className="h-1.5 w-full bg-slate-700/50 rounded-full overflow-hidden mb-3">
-                                        <div className="h-full w-full bg-gradient-to-r from-[#2222E3] to-[#2222E3] rounded-full animate-pulse" style={{ animationDuration: "1.5s" }} />
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-[#2222E3] animate-pulse" />
-                                        {scanStage || "Initializing…"}
-                                    </div>
-                                </div>
+                                </TiltCard>
                             )}
 
                             {/* ── EMPTY STATE (no scan yet) ── */}
@@ -879,60 +925,68 @@ export default function DashboardPage() {
                                             Getting Started
                                         </h2>
                                         <div className="grid sm:grid-cols-3 gap-6">
-                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 hover:bg-[#2222E3]/20 hover:scale-110">
+                                            <TiltCard className="text-center bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 group-hover:bg-[#2222E3]/20 group-hover:scale-110">
                                                     <Globe className="w-5 h-5 text-[#2222E3]" />
                                                 </div>
                                                 <h3 className="text-sm font-normal text-slate-200 mb-1">Enter a URL</h3>
                                                 <p className="text-xs text-slate-500">Paste any public URL above to scan for WCAG violations.</p>
-                                            </div>
-                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 hover:bg-[#2222E3]/20 hover:scale-110">
+                                            </TiltCard>
+                                            <TiltCard className="text-center bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#2222E3]/10 border border-[#2222E3]/10 transition-all duration-300 group-hover:bg-[#2222E3]/20 group-hover:scale-110">
                                                     <Upload className="w-5 h-5 text-[#2222E3]" />
                                                 </div>
                                                 <h3 className="text-sm font-normal text-slate-200 mb-1">Upload a File</h3>
                                                 <p className="text-xs text-slate-500">Drag-and-drop an HTML file for offline auditing.</p>
-                                            </div>
-                                            <div className="text-center transition-all duration-300 hover:-translate-y-1">
-                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/10 transition-all duration-300 hover:bg-emerald-500/20 hover:scale-110">
+                                            </TiltCard>
+                                            <TiltCard className="text-center bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
+                                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/10 transition-all duration-300 group-hover:bg-emerald-500/20 group-hover:scale-110">
                                                     <Bug className="w-5 h-5 text-emerald-400" />
                                                 </div>
                                                 <h3 className="text-sm font-normal text-slate-200 mb-1">Try Test Page</h3>
                                                 <p className="text-xs text-slate-500">Use <code className="text-[#2222E3] bg-[#2222E3]/10 px-1 rounded">/test.html</code> to see AllyFlow in action.</p>
-                                            </div>
+                                            </TiltCard>
                                         </div>
                                     </div>
 
                                     {/* Feature Highlights */}
                                     <div className="grid sm:grid-cols-2 gap-4">
-                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <Zap className="w-5 h-5 text-[#2222E3]" />
-                                                <h3 className="text-sm font-normal text-slate-200">AI-Powered Fixes</h3>
+                                        <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                            <div className="p-5">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <Zap className="w-5 h-5 text-[#2222E3]" />
+                                                    <h3 className="text-sm font-normal text-slate-200">AI-Powered Fixes</h3>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">Gemini 2.5 Flash drafts WCAG-compliant HTML for every failing node. Review changes in a Monaco diff editor before applying.</p>
                                             </div>
-                                            <p className="text-xs text-slate-400 leading-relaxed">Gemini 2.5 Flash drafts WCAG-compliant HTML for every failing node. Review changes in a Monaco diff editor before applying.</p>
-                                        </div>
-                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <ShieldAlert className="w-5 h-5 text-emerald-400" />
-                                                <h3 className="text-sm font-normal text-slate-200">Safe by Default</h3>
+                                        </TiltCard>
+                                        <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                            <div className="p-5">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <ShieldAlert className="w-5 h-5 text-emerald-400" />
+                                                    <h3 className="text-sm font-normal text-slate-200">Safe by Default</h3>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">Scripts are hibernated during scanning. No side effects. The offline heuristic engine guarantees fixes even without AI.</p>
                                             </div>
-                                            <p className="text-xs text-slate-400 leading-relaxed">Scripts are hibernated during scanning. No side effects. The offline heuristic engine guarantees fixes even without AI.</p>
-                                        </div>
-                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <BarChart3 className="w-5 h-5 text-[#2222E3]" />
-                                                <h3 className="text-sm font-normal text-slate-200">SEO + Best Practices</h3>
+                                        </TiltCard>
+                                        <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                            <div className="p-5">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <BarChart3 className="w-5 h-5 text-[#2222E3]" />
+                                                    <h3 className="text-sm font-normal text-slate-200">SEO + Best Practices</h3>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">Lightweight SEO checks and a 7-rule best-practices engine catch what axe-core automation misses.</p>
                                             </div>
-                                            <p className="text-xs text-slate-400 leading-relaxed">Lightweight SEO checks and a 7-rule best-practices engine catch what axe-core automation misses.</p>
-                                        </div>
-                                        <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-5 transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.10] hover:-translate-y-0.5">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <Download className="w-5 h-5 text-[#2222E3]" />
-                                                <h3 className="text-sm font-normal text-slate-200">Export Clean HTML</h3>
+                                        </TiltCard>
+                                        <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                            <div className="p-5">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <Download className="w-5 h-5 text-[#2222E3]" />
+                                                    <h3 className="text-sm font-normal text-slate-200">Export Clean HTML</h3>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">Export remediated HTML with absolutized paths, restored scripts, and zero tracking attributes.</p>
                                             </div>
-                                            <p className="text-xs text-slate-400 leading-relaxed">Export remediated HTML with absolutized paths, restored scripts, and zero tracking attributes.</p>
-                                        </div>
+                                        </TiltCard>
                                     </div>
 
                                     {/* Recent Scans */}
@@ -944,19 +998,21 @@ export default function DashboardPage() {
                                             </h2>
                                             <div className="space-y-2">
                                                 {recentScans.map((scan, i) => (
-                                                    <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-colors cursor-pointer" onClick={() => setActiveTab("audit")}>
-                                                        <div className="flex items-center gap-3 min-w-0">
-                                                            <Globe className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                                                            <span className="text-sm text-slate-300 truncate">{scan.url}</span>
+                                                    <TiltCard key={i} className="bg-white/[0.02] rounded-lg border border-white/[0.06] cursor-pointer" onClick={() => setActiveTab("audit")}>
+                                                        <div className="flex items-center justify-between py-2.5 px-3">
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <Globe className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                                                                <span className="text-sm text-slate-300 truncate">{scan.url}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-4 flex-shrink-0 ml-3">
+                                                                <span className="text-xs text-slate-500">{scan.violations} issues</span>
+                                                                <span className={cn("text-xs font-bold", scan.a11yScore > 80 ? "text-emerald-400" : scan.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>
+                                                                    {scan.a11yScore}%
+                                                                </span>
+                                                                <span className="text-[11px] text-slate-600">{scan.timestamp}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-4 flex-shrink-0 ml-3">
-                                                            <span className="text-xs text-slate-500">{scan.violations} issues</span>
-                                                            <span className={cn("text-xs font-bold", scan.a11yScore > 80 ? "text-emerald-400" : scan.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>
-                                                                {scan.a11yScore}%
-                                                            </span>
-                                                            <span className="text-[11px] text-slate-600">{scan.timestamp}</span>
-                                                        </div>
-                                                    </div>
+                                                    </TiltCard>
                                                 ))}
                                             </div>
                                         </div>
@@ -1030,56 +1086,60 @@ export default function DashboardPage() {
                                                     Scan Comparison
                                                 </h3>
                                                 <div className="grid grid-cols-2 gap-6">
-                                                    <div className={cn("rounded-lg border p-5 transition-all duration-300 hover:bg-white/[0.04]", diff < 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Latest</span>
-                                                            {diff > 0 && <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Improved</span>}
-                                                        </div>
-                                                        <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={curr.url}>{curr.url}</div>
-                                                        <div className="flex items-center gap-6">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", curr.a11yScore > 80 ? "text-emerald-400" : curr.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.a11yScore}%</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
+                                                    <TiltCard className={cn("rounded-lg border", diff < 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
+                                                        <div className="p-5">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Latest</span>
+                                                                {diff > 0 && <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Improved</span>}
                                                             </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", curr.seoScore === 100 ? "text-emerald-400" : curr.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.seoScore}%</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
+                                                            <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={curr.url}>{curr.url}</div>
+                                                            <div className="flex items-center gap-6">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className={cn("text-2xl font-normal", curr.a11yScore > 80 ? "text-emerald-400" : curr.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.a11yScore}%</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className={cn("text-2xl font-normal", curr.seoScore === 100 ? "text-emerald-400" : curr.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{curr.seoScore}%</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="text-2xl font-normal text-orange-400">{curr.violations}</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="text-2xl font-normal text-orange-400">{curr.violations}</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
-                                                            <Clock className="w-3 h-3" />
-                                                            {currTime}
-                                                        </div>
-                                                    </div>
-                                                    <div className={cn("rounded-lg border p-5 transition-all duration-300 hover:bg-white/[0.04]", diff > 0 ? "border-red-500/30 bg-red-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Previous</span>
-                                                            {diff < 0 && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Declined</span>}
-                                                        </div>
-                                                        <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={prev.url}>{prev.url}</div>
-                                                        <div className="flex items-center gap-6">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", prev.a11yScore > 80 ? "text-emerald-400" : prev.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.a11yScore}%</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
-                                                            </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={cn("text-2xl font-normal", prev.seoScore === 100 ? "text-emerald-400" : prev.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.seoScore}%</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
-                                                            </div>
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="text-2xl font-normal text-orange-400">{prev.violations}</span>
-                                                                <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
+                                                                <Clock className="w-3 h-3" />
+                                                                {currTime}
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
-                                                            <Clock className="w-3 h-3" />
-                                                            {prevTime}
+                                                    </TiltCard>
+                                                    <TiltCard className={cn("rounded-lg border", diff > 0 ? "border-red-500/30 bg-red-500/5" : "border-white/[0.06] bg-white/[0.02]")}>
+                                                        <div className="p-5">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Previous</span>
+                                                                {diff < 0 && <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">Declined</span>}
+                                                            </div>
+                                                            <div className="text-sm text-slate-300 mb-3 truncate font-medium" title={prev.url}>{prev.url}</div>
+                                                            <div className="flex items-center gap-6">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className={cn("text-2xl font-normal", prev.a11yScore > 80 ? "text-emerald-400" : prev.a11yScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.a11yScore}%</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Ally</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className={cn("text-2xl font-normal", prev.seoScore === 100 ? "text-emerald-400" : prev.seoScore > 50 ? "text-yellow-400" : "text-red-400")}>{prev.seoScore}%</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">SEO</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="text-2xl font-normal text-orange-400">{prev.violations}</span>
+                                                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wide">Issues</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-3">
+                                                                <Clock className="w-3 h-3" />
+                                                                {prevTime}
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    </TiltCard>
                                                 </div>
                                                 {diff === 0 ? (
                                                     <div className="text-center text-sm text-slate-500 mt-4">Scores are identical</div>
@@ -1193,7 +1253,10 @@ export default function DashboardPage() {
 
                 {/* ── VIEW 2: AUDIT STUDIO (THE IDE) ── */}
                 {activeTab === "audit" && (
-                    <div className="flex flex-col h-full bg-[#111113] animate-in fade-in duration-300">
+                    <div className={cn(
+                        "flex flex-col h-full bg-[#111113]",
+                        "animate-fade-in-up-smooth"
+                    )}>
                         {/* IDE Header */}
                         <header className="flex items-center justify-between px-4 h-14 bg-[#111113] border-b border-white/[0.06] flex-shrink-0">
                             <div className="flex items-center gap-2">
@@ -1213,6 +1276,37 @@ export default function DashboardPage() {
                                             {scannedUrl === "Uploaded File" ? <FileCode2 className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                                             {scannedUrl}
                                         </span>
+                                    </>
+                                )}
+                                {!scannedUrl && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => auditFileInputRef.current?.click()}
+                                            disabled={scanStatus === "scanning"}
+                                            className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700 active:scale-95 transition-all"
+                                            title="Upload local HTML file"
+                                        >
+                                            <Upload className="w-3 h-3" />
+                                            Upload HTML
+                                        </button>
+                                        <input
+                                            type="file"
+                                            accept=".html"
+                                            ref={auditFileInputRef}
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    const content = ev.target?.result as string;
+                                                    if (content) handleScan("Uploaded File", content);
+                                                };
+                                                reader.readAsText(file);
+                                                if (auditFileInputRef.current) auditFileInputRef.current.value = "";
+                                            }}
+                                            className="hidden"
+                                        />
                                     </>
                                 )}
                             </div>
@@ -1301,22 +1395,39 @@ export default function DashboardPage() {
 
                             {/* Right: Monaco Editor */}
                             <div className="flex-1 flex flex-col min-h-0 bg-[#111113]">
-                                <DiffViewer
-                                    status={scanStatus}
-                                    beforeCode={masterHtml}
-                                    healResult={healResult}
-                                    activeViolationId={healingViolationId}
-                                    isHealing={healStatus === "healing"}
-                                    fontSize={fontSize}
-                                    wordWrap={wordWrap}
-                                    tabSize={tabSize}
-                                    minimap={minimap}
-                                    theme={editorTheme}
-                                    onApplyFix={handleApplyFix}
-                                    onRefix={handleRefix}
-                                    onRescan={masterHtml && scannedUrl ? handleRescan : undefined}
-                                    onToggleTheme={() => updateEditorTheme(editorTheme === "vs-dark" ? "vs" : "vs-dark")}
-                                />
+                                {scanStatus === "scanning" ? (
+                                    <div className="flex-1 flex flex-col p-6 gap-4">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Skeleton className="w-4 h-4 rounded bg-slate-700/50" />
+                                            <Skeleton className="h-3 w-24 bg-slate-700/50" />
+                                        </div>
+                                        <Skeleton className="h-8 w-full bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-full bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-3/4 bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-full bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-5/6 bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-4/5 bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-full bg-slate-700/30 rounded-lg" />
+                                        <Skeleton className="h-8 w-2/3 bg-slate-700/30 rounded-lg" />
+                                    </div>
+                                ) : (
+                                    <DiffViewer
+                                        status={scanStatus}
+                                        beforeCode={masterHtml}
+                                        healResult={healResult}
+                                        activeViolationId={healingViolationId}
+                                        isHealing={healStatus === "healing"}
+                                        fontSize={fontSize}
+                                        wordWrap={wordWrap}
+                                        tabSize={tabSize}
+                                        minimap={minimap}
+                                        theme={editorTheme}
+                                        onApplyFix={handleApplyFix}
+                                        onRefix={handleRefix}
+                                        onRescan={masterHtml && scannedUrl ? handleRescan : undefined}
+                                        onToggleTheme={() => updateEditorTheme(editorTheme === "vs-dark" ? "vs" : "vs-dark")}
+                                    />
+                                )}
                             </div>
                         </div>
 
@@ -1333,7 +1444,7 @@ export default function DashboardPage() {
 
                 {/* ── VIEW 3: SETTINGS ── */}
                 {activeTab === "settings" && (
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto animate-fade-in-up-smooth">
                         <div className="max-w-2xl mx-auto pt-20 px-8 pb-12">
                             <div className="text-center mb-10 space-y-3">
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/[0.08] text-white mb-2">
@@ -1347,162 +1458,174 @@ export default function DashboardPage() {
 
                             <div className="space-y-6">
                                 {/* Font Size */}
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <Type className="w-5 h-5 text-white" />
-                                            <h2 className="text-lg font-normal text-slate-200">Monaco Editor Font Size</h2>
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                    <div className="p-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <Type className="w-5 h-5 text-white" />
+                                                <h2 className="text-lg font-normal text-slate-200">Monaco Editor Font Size</h2>
+                                            </div>
+                                            <button
+                                                onClick={() => updateFontSize(13)}
+                                                className="text-xs text-slate-400 hover:text-white underline transition-colors"
+                                            >
+                                                Reset default
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => updateFontSize(13)}
-                                            className="text-xs text-slate-400 hover:text-white underline transition-colors"
-                                        >
-                                            Reset default
-                                        </button>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="range"
+                                                min={10}
+                                                max={24}
+                                                step={1}
+                                                value={fontSize}
+                                                onChange={(e) => updateFontSize(Number(e.target.value))}
+                                                className="flex-1 accent-white h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
+                                            />
+                                            <span className="text-sm font-mono text-slate-300 w-10 text-right">{fontSize}px</span>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] text-slate-500 mt-1 px-1">
+                                            <span>10px</span>
+                                            <span>24px</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="range"
-                                            min={10}
-                                            max={24}
-                                            step={1}
-                                            value={fontSize}
-                                            onChange={(e) => updateFontSize(Number(e.target.value))}
-                                            className="flex-1 accent-white h-2 rounded-full appearance-none cursor-pointer bg-slate-700"
-                                        />
-                                        <span className="text-sm font-mono text-slate-300 w-10 text-right">{fontSize}px</span>
-                                    </div>
-                                    <div className="flex justify-between text-[11px] text-slate-500 mt-1 px-1">
-                                        <span>10px</span>
-                                        <span>24px</span>
-                                    </div>
-                                </div>
+                                </TiltCard>
 
                                 {/* Word Wrap */}
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <WrapText className="w-5 h-5 text-white" />
-                                        <h2 className="text-lg font-normal text-slate-200">Word Wrap</h2>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={() => updateWordWrap("on")}
-                                            className={cn(
-                                                "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
-                                                wordWrap === "on"
-                                                    ? "bg-white/[0.1] text-white border-white/20"
-                                                    : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
-                                            )}
-                                        >
-                                            On
-                                        </button>
-                                        <button
-                                            onClick={() => updateWordWrap("off")}
-                                            className={cn(
-                                                "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
-                                                wordWrap === "off"
-                                                    ? "bg-white/[0.1] text-white border-white/20"
-                                                    : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
-                                            )}
-                                        >
-                                            Off
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Tab Size */}
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <Indent className="w-5 h-5 text-white" />
-                                        <h2 className="text-lg font-normal text-slate-200">Tab Size</h2>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        {([2, 4, 8] as const).map((size) => (
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                    <div className="p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <WrapText className="w-5 h-5 text-white" />
+                                            <h2 className="text-lg font-normal text-slate-200">Word Wrap</h2>
+                                        </div>
+                                        <div className="flex gap-3">
                                             <button
-                                                key={size}
-                                                onClick={() => updateTabSize(size)}
+                                                onClick={() => updateWordWrap("on")}
                                                 className={cn(
                                                     "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
-                                                    tabSize === size
+                                                    wordWrap === "on"
                                                         ? "bg-white/[0.1] text-white border-white/20"
                                                         : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
                                                 )}
                                             >
-                                                {size}
+                                                On
                                             </button>
-                                        ))}
+                                            <button
+                                                onClick={() => updateWordWrap("off")}
+                                                className={cn(
+                                                    "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
+                                                    wordWrap === "off"
+                                                        ? "bg-white/[0.1] text-white border-white/20"
+                                                        : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
+                                                )}
+                                            >
+                                                Off
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                </TiltCard>
+
+                                {/* Tab Size */}
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                    <div className="p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Indent className="w-5 h-5 text-white" />
+                                            <h2 className="text-lg font-normal text-slate-200">Tab Size</h2>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            {([2, 4, 8] as const).map((size) => (
+                                                <button
+                                                    key={size}
+                                                    onClick={() => updateTabSize(size)}
+                                                    className={cn(
+                                                        "flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all",
+                                                        tabSize === size
+                                                            ? "bg-white/[0.1] text-white border-white/20"
+                                                            : "bg-slate-800 text-slate-400 border-slate-700/40 hover:border-slate-600"
+                                                    )}
+                                                >
+                                                    {size}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </TiltCard>
 
                                 {/* Minimap */}
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Eye className="w-5 h-5 text-white" />
-                                            <h2 className="text-lg font-normal text-slate-200">Minimap</h2>
-                                        </div>
-                                        <button
-                                            onClick={() => updateMinimap(!minimap)}
-                                            className={cn(
-                                                "relative w-11 h-6 rounded-full transition-colors",
-                                                minimap ? "bg-white/[0.2]" : "bg-slate-700"
-                                            )}
-                                        >
-                                            <span
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                    <div className="p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Eye className="w-5 h-5 text-white" />
+                                                <h2 className="text-lg font-normal text-slate-200">Minimap</h2>
+                                            </div>
+                                            <button
+                                                onClick={() => updateMinimap(!minimap)}
                                                 className={cn(
-                                                    "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
-                                                    minimap && "translate-x-5"
+                                                    "relative w-11 h-6 rounded-full transition-colors",
+                                                    minimap ? "bg-white/[0.2]" : "bg-slate-700"
                                                 )}
-                                            />
-                                        </button>
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                                                        minimap && "translate-x-5"
+                                                    )}
+                                                />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                </TiltCard>
 
                                 {/* Clear All Scan Data */}
-                                <div className="bg-white/[0.02] rounded-xl border border-red-500/10 p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Trash2 className="w-5 h-5 text-red-400" />
-                                            <div>
-                                                <h2 className="text-lg font-normal text-slate-200">Clear All Scan Data</h2>
-                                                <p className="text-xs text-slate-500 mt-0.5">Removes recent scans, daily counters, and cached results</p>
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-red-500/10">
+                                    <div className="p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Trash2 className="w-5 h-5 text-red-400" />
+                                                <div>
+                                                    <h2 className="text-lg font-normal text-slate-200">Clear All Scan Data</h2>
+                                                    <p className="text-xs text-slate-500 mt-0.5">Removes recent scans, daily counters, and cached results</p>
+                                                </div>
                                             </div>
+                                            <button
+                                                onClick={clearScanData}
+                                                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                            >
+                                                Clear
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={clearScanData}
-                                            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-                                        >
-                                            Clear
-                                        </button>
                                     </div>
-                                </div>
+                                </TiltCard>
 
                                 {/* Anonymous Usage Stats */}
-                                <div className="bg-white/[0.02] rounded-xl border border-white/[0.06] p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Shield className="w-5 h-5 text-white" />
-                                            <div>
-                                                <h2 className="text-lg font-normal text-slate-200">Anonymous Usage Stats</h2>
-                                                <p className="text-xs text-slate-500 mt-0.5">Help improve AllyFlow by sending anonymous usage data</p>
+                                <TiltCard className="bg-white/[0.02] rounded-xl border border-white/[0.06]">
+                                    <div className="p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Shield className="w-5 h-5 text-white" />
+                                                <div>
+                                                    <h2 className="text-lg font-normal text-slate-200">Anonymous Usage Stats</h2>
+                                                    <p className="text-xs text-slate-500 mt-0.5">Help improve AllyFlow by sending anonymous usage data</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <button
-                                            onClick={() => updateAnonymousUsage(!anonymousUsage)}
-                                            className={cn(
-                                                "relative w-11 h-6 rounded-full transition-colors",
-                                                anonymousUsage ? "bg-white/[0.2]" : "bg-slate-700"
-                                            )}
-                                        >
-                                            <span
+                                            <button
+                                                onClick={() => updateAnonymousUsage(!anonymousUsage)}
                                                 className={cn(
-                                                    "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
-                                                    anonymousUsage && "translate-x-5"
+                                                    "relative w-11 h-6 rounded-full transition-colors",
+                                                    anonymousUsage ? "bg-white/[0.2]" : "bg-slate-700"
                                                 )}
-                                            />
-                                        </button>
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                                                        anonymousUsage && "translate-x-5"
+                                                    )}
+                                                />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                </TiltCard>
                             </div>
                         </div>
                     </div>

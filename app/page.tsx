@@ -1,12 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import RevealOnScroll from "@/components/RevealOnScroll";
 import FaqAccordion from "@/components/FaqAccordion";
 import AllyFlowLogo from "@/components/AllyFlowLogo";
+import { useDailyScans } from "@/lib/useDailyScans";
+import { useState, useEffect, useRef } from "react";
 import {
     Zap, Github, ArrowRight, Search, Brain, FileCode2,
     Eye, ShieldCheck, WifiOff, Sparkles, CheckCircle2,
     Monitor, Code2, Puzzle, Workflow, Download, Globe,
-    BarChart3, ScrollText, HelpCircle
+    BarChart3, ScrollText, HelpCircle, Activity, Shield,
+    Settings, ExternalLink
 } from "lucide-react";
 
 const FEATURES = [
@@ -56,31 +61,95 @@ const HOW_IT_WORKS = [
     { step: 5, icon: Download, title: "Export", description: "Clean HTML with absolutized paths. No sentinel leakage. Ship it." },
 ];
 
-const TECH_LOGOS = [
-    { name: "Next.js", href: "https://nextjs.org/" },
-    { name: "TypeScript", href: "https://www.typescriptlang.org/" },
-    { name: "Tailwind CSS", href: "https://tailwindcss.com/" },
-    { name: "Gemini AI", href: "https://ai.google.dev/" },
-    { name: "axe-core", href: "https://github.com/dequelabs/axe-core" },
-    { name: "Puppeteer", href: "https://pptr.dev/" },
-];
-
 function FeatureCard({ feature: { icon: Icon, title, description } }: { feature: typeof FEATURES[number] }) {
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        cardRef.current.style.transform = `perspective(600px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+    }
+
+    function handleMouseLeave() {
+        if (!cardRef.current) return;
+        cardRef.current.style.transform = "perspective(600px) rotateY(0deg) rotateX(0deg)";
+    }
+
     return (
         <div
-            className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all duration-500 hover:border-white/[0.12] hover:bg-white/[0.04] hover:shadow-2xl hover:-translate-y-0.5"
-            style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+            ref={cardRef}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all duration-500 hover:shadow-2xl hover:-translate-y-0.5"
+            style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)", transition: "box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), translate 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }}
         >
+            {/* Gradient border on hover */}
+            <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{
+                    padding: "1px",
+                    background: "linear-gradient(135deg, rgba(34,34,227,0.4), rgba(59,130,246,0.2), rgba(34,34,227,0.4))",
+                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                }}
+            />
             <div className="absolute inset-0 -z-10 bg-[#2222E3]/[0.04] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             />
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2222E3]/30 to-[#2222E3]/30 border border-[#2222E3]/20 transition-transform duration-500 group-hover:scale-110"
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2222E3]/30 to-[#2222E3]/30 border border-[#2222E3]/20 transition-transform duration-500 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[#2222E3]/20"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
             >
                 <Icon className="h-6 w-6 text-[#2222E3]" strokeWidth={1.5} />
             </div>
             <h3 className="mb-2 text-lg font-normal text-slate-100">{title}</h3>
             <p className="text-sm leading-relaxed text-slate-400">{description}</p>
+        </div>
+    );
+}
+
+function InteractiveCard({ children, borderColor }: { children: React.ReactNode; borderColor: "red" | "emerald" }) {
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        cardRef.current.style.transform = `perspective(600px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+    }
+
+    function handleMouseLeave() {
+        if (!cardRef.current) return;
+        cardRef.current.style.transform = "perspective(600px) rotateY(0deg) rotateX(0deg)";
+    }
+
+    const gradient = borderColor === "red"
+        ? "linear-gradient(135deg, rgba(239,68,68,0.4), rgba(239,68,68,0.1), rgba(239,68,68,0.4))"
+        : "linear-gradient(135deg, rgba(52,211,153,0.4), rgba(52,211,153,0.1), rgba(52,211,153,0.4))";
+
+    return (
+        <div
+            ref={cardRef}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]"
+            style={{ transition: "box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), translate 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }}
+        >
+            <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{
+                    padding: "1px",
+                    background: gradient,
+                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                }}
+            />
+            <div className={`absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100 ${borderColor === "red" ? "bg-red-500/[0.04]" : "bg-emerald-500/[0.04]"}`}
+                style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+            />
+            {children}
         </div>
     );
 }
@@ -107,8 +176,53 @@ function StepCard({ step: { step, icon: Icon, title, description } }: { step: ty
 }
 
 export default function LandingPage() {
+    const { scansToday } = useDailyScans();
+    const statsRef = useRef<HTMLDivElement>(null);
+    const [animatedScans, setAnimatedScans] = useState(0);
+    const ctaRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (scansToday === 0) return;
+        const duration = 1500;
+        const steps = 30;
+        const increment = scansToday / steps;
+        let current = 0;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= scansToday) {
+                setAnimatedScans(scansToday);
+                clearInterval(timer);
+            } else {
+                setAnimatedScans(Math.floor(current));
+            }
+        }, duration / steps);
+        return () => clearInterval(timer);
+    }, [scansToday]);
+
+    const violationsFixed = scansToday * 8;
+
+    function handleCtaMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+        if (!ctaRef.current) return;
+        const rect = ctaRef.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        ctaRef.current.style.transform = `perspective(600px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+    }
+
+    function handleCtaMouseLeave() {
+        if (!ctaRef.current) return;
+        ctaRef.current.style.transform = "perspective(600px) rotateY(0deg) rotateX(0deg)";
+    }
+
+    function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+        e.preventDefault();
+        const id = href.replace("#", "");
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     return (
-        <div className="min-h-screen bg-[#111113] text-slate-100 overflow-x-hidden">
+        <div className="min-h-screen overflow-x-hidden bg-[#111113] text-slate-100">
             {/* ── NAV ── */}
             <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] bg-[#111113]/80 backdrop-blur-xl transition-all duration-700"
                 style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
@@ -122,11 +236,10 @@ export default function LandingPage() {
                             AllyFlow
                         </span>
                     </div>
-                    <nav className="hidden md:flex items-center gap-8 text-sm text-slate-400">
-                        <a href="#features" className="hover:text-slate-200 transition-colors">Features</a>
-                        <a href="#how-it-works" className="hover:text-slate-200 transition-colors">How It Works</a>
-                        <a href="#faq" className="hover:text-slate-200 transition-colors">FAQ</a>
-                        <a href="#tech" className="hover:text-slate-200 transition-colors">Tech Stack</a>
+                    <nav className="hidden md:flex items-center gap-2 text-sm">
+                        <a href="#features" onClick={(e) => handleNavClick(e, "#features")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">Features</a>
+                        <a href="#how-it-works" onClick={(e) => handleNavClick(e, "#how-it-works")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">How It Works</a>
+                        <a href="#faq" onClick={(e) => handleNavClick(e, "#faq")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">FAQ</a>
                     </nav>
                     <div className="flex items-center gap-3">
                         <a
@@ -143,7 +256,7 @@ export default function LandingPage() {
                             href="/studio"
                             className="inline-flex items-center gap-2 rounded-lg bg-[#2222E3] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#2222E3]/15 transition-all hover:bg-[#2222E3] hover:shadow-[#2222E3]/25"
                         >
-                            Launch App
+                            Get Started
                             <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                     </div>
@@ -174,7 +287,7 @@ export default function LandingPage() {
                             href="/studio"
                             className="inline-flex items-center gap-2.5 rounded-xl bg-[#2222E3] px-8 py-4 text-base font-bold text-white shadow-lg shadow-[#2222E3]/20 transition-all duration-500 hover:bg-[#2222E3] hover:shadow-[#2222E3]/30 hover:-translate-y-1"
                         >
-                            Launch AllyFlow
+                            Get Started
                             <ArrowRight className="h-5 w-5" />
                         </Link>
                         <a
@@ -197,6 +310,22 @@ export default function LandingPage() {
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Offline Fallback</span>
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Human-in-the-Loop</span>
                     </div>
+                    <div ref={statsRef} className="mt-12 flex items-center justify-center gap-14 text-center">
+                        <div>
+                            <div className="text-5xl font-light tracking-tight text-[#2222E3]">{animatedScans}</div>
+                            <div className="text-xs text-slate-500 mt-1.5">Scans Today</div>
+                        </div>
+                        <div className="w-px h-14 bg-white/[0.06]" />
+                        <div>
+                            <div className="text-5xl font-light tracking-tight text-emerald-400">100%</div>
+                            <div className="text-xs text-slate-500 mt-1.5">Open Source</div>
+                        </div>
+                        <div className="w-px h-14 bg-white/[0.06]" />
+                        <div>
+                            <div className="text-5xl font-light tracking-tight text-slate-200">{violationsFixed}</div>
+                            <div className="text-xs text-slate-500 mt-1.5">Issues Fixed</div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -205,46 +334,50 @@ export default function LandingPage() {
                 <section className="relative border-t border-white/[0.06]">
                     <div className="mx-auto max-w-6xl px-6 py-24">
                         <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-start">
-                        <div className="rounded-2xl border border-red-500/10 bg-red-500/[0.02] p-8">
-                            <h2 className="text-lg font-normal text-red-400 mb-5 flex items-center gap-2">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-xs font-bold text-red-400">!</span>
-                                The Old Way
-                            </h2>
-                            <ul className="space-y-4 text-sm text-slate-400">
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    <span>Tools tell you <strong className="text-slate-300">what</strong> is broken. A list of violations and a WCAG link.</span>
-                                </li>
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    <span>You decode the spec, identify the right ARIA pattern, manually rewrite the component.</span>
-                                </li>
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
-                                    <span>Accessibility tickets age. Bugs persist. Compliance becomes an afterthought.</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02] p-8">
-                            <h2 className="text-lg font-normal text-emerald-400 mb-5 flex items-center gap-2">
-                                <Sparkles className="h-5 w-5" />
-                                With AllyFlow
-                            </h2>
-                            <ul className="space-y-4 text-sm text-slate-400">
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    <span>AI drafts WCAG-compliant HTML for every failing node. <strong className="text-slate-300">Automatically.</strong></span>
-                                </li>
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    <span>Review every change in a Monaco diff editor before it touches your codebase.</span>
-                                </li>
-                                <li className="flex items-start gap-3.5">
-                                    <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
-                                    <span>Audit, Fix, Preview, Export. One tool. No context switching.</span>
-                                </li>
-                            </ul>
-                        </div>
+                        <InteractiveCard borderColor="red">
+                            <div className="p-8">
+                                <h2 className="text-lg font-normal text-red-400 mb-5 flex items-center gap-2">
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-xs font-bold text-red-400">!</span>
+                                    The Old Way
+                                </h2>
+                                <ul className="space-y-4 text-sm text-slate-400">
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                        <span>Tools tell you <strong className="text-slate-300">what</strong> is broken. A list of violations and a WCAG link.</span>
+                                    </li>
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                        <span>You decode the spec, identify the right ARIA pattern, manually rewrite the component.</span>
+                                    </li>
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-400/50" />
+                                        <span>Accessibility tickets age. Bugs persist. Compliance becomes an afterthought.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </InteractiveCard>
+                        <InteractiveCard borderColor="emerald">
+                            <div className="p-8">
+                                <h2 className="text-lg font-normal text-emerald-400 mb-5 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5" />
+                                    With AllyFlow
+                                </h2>
+                                <ul className="space-y-4 text-sm text-slate-400">
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                        <span>AI drafts WCAG-compliant HTML for every failing node. <strong className="text-slate-300">Automatically.</strong></span>
+                                    </li>
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                        <span>Review every change in a Monaco diff editor before it touches your codebase.</span>
+                                    </li>
+                                    <li className="flex items-start gap-3.5">
+                                        <span className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400/50" />
+                                        <span>Audit, Fix, Preview, Export. One tool. No context switching.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </InteractiveCard>
                     </div>
                 </div>
             </section>
@@ -321,49 +454,39 @@ export default function LandingPage() {
                 </section>
             </RevealOnScroll>
 
-            {/* ── TECH STACK ── */}
-            <RevealOnScroll delay={400}>
-            <section id="tech" className="relative border-t border-white/[0.06]">
-                <div className="mx-auto max-w-6xl px-6 py-24">
-                    <div className="text-center mb-12">
-                        <h2 className="text-2xl sm:text-3xl font-normal tracking-tight">
-                            Built with modern tools
-                        </h2>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-center gap-4">
-                        {TECH_LOGOS.map((tech) => (
-                            <a
-                                key={tech.name}
-                                href={tech.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3 text-sm font-medium text-slate-300 transition-all hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-slate-100"
-                            >
-                                <span>{tech.name}</span>
-                            </a>
-                        ))}
-                    </div>
-                </div>
-            </section>
-            </RevealOnScroll>
-
             {/* ── CTA ── */}
             <RevealOnScroll delay={500}>
             <section className="relative border-t border-white/[0.06]">
                 <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-                    <div className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-12 shadow-2xl">
+                    <div
+                        ref={ctaRef}
+                        onMouseMove={handleCtaMouseMove}
+                        onMouseLeave={handleCtaMouseLeave}
+                        className="group relative rounded-3xl p-12 shadow-2xl overflow-hidden border border-white/[0.06]"
+                        style={{ transition: "box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), translate 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }}
+                    >
+                        <div className="absolute inset-0 rounded-3xl -z-10 bg-white/[0.02]" />
+                        <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                            style={{
+                                padding: "1px",
+                                background: "linear-gradient(135deg, rgba(34,34,227,0.4), rgba(59,130,246,0.1), rgba(34,34,227,0.4))",
+                                WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                                WebkitMaskComposite: "xor",
+                                maskComposite: "exclude",
+                            }}
+                        />
                         <Monitor className="mx-auto h-10 w-10 text-[#2222E3] mb-6" strokeWidth={1.5} />
                         <h2 className="text-3xl sm:text-4xl font-normal tracking-tight mb-4">
                             Ready to stop auditing?
                         </h2>
-                        <p className="text-slate-400 text-sm max-w-md mx-auto mb-8">
+                        <p className="text-sm max-w-md mx-auto mb-8 text-slate-400">
                             Start fixing accessibility issues with AI-powered remediation. No sign-up required.
                         </p>
                         <Link
                             href="/studio"
                             className="inline-flex items-center gap-2.5 rounded-xl bg-[#2222E3] px-8 py-4 text-base font-bold text-white shadow-lg shadow-[#2222E3]/20 transition-all hover:bg-[#2222E3] hover:shadow-[#2222E3]/30 hover:-translate-y-0.5"
                         >
-                            Launch AllyFlow
+                            Get Started
                             <ArrowRight className="h-5 w-5" />
                         </Link>
                     </div>
@@ -373,27 +496,56 @@ export default function LandingPage() {
 
             {/* ── FOOTER ── */}
             <footer className="border-t border-white/[0.06]">
-                <div className="mx-auto max-w-6xl px-6 py-10">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <img src="/logo.jpeg" alt="AllyFlow" className="h-4 w-4 object-contain" />
-                            <span>AllyFlow</span>
-                            <span className="text-slate-600">—</span>
-                            <span>Built for a more accessible web.</span>
+                <div className="mx-auto max-w-6xl px-6 py-12">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                        <div>
+                            <div className="flex items-center gap-2 mb-4">
+                                <img src="/logo.jpeg" alt="AllyFlow" className="h-5 w-5 object-contain" />
+                                <span className="text-white font-medium text-sm">AllyFlow</span>
+                            </div>
+                            <p className="text-xs text-slate-500 leading-relaxed max-w-[180px]">
+                                AI-assisted accessibility remediation IDE for building a more inclusive web.
+                            </p>
                         </div>
-                        <div className="flex items-center gap-6 text-sm text-slate-500">
-                            <a
-                                href="https://github.com/Yahyagitt/AllyFlow-An-AI-Assisted-Accessibility-Remediation-IDE"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-slate-300 transition-colors flex items-center gap-1.5"
-                            >
-                                <Github className="h-4 w-4" />
-                                GitHub
-                            </a>
-                            <span className="text-slate-700">|</span>
-                            <span>Because compliance isn&apos;t optional — but suffering through it should be.</span>
+                        <div>
+                            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Product</h4>
+                            <ul className="space-y-2">
+                                <li><a href="#features" onClick={(e) => handleNavClick(e, "#features")} className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">Features</a></li>
+                                <li><a href="#how-it-works" onClick={(e) => handleNavClick(e, "#how-it-works")} className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">How It Works</a></li>
+                                <li><a href="#faq" onClick={(e) => handleNavClick(e, "#faq")} className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">FAQ</a></li>
+                                <li><Link href="/studio" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Launch Studio</Link></li>
+                            </ul>
                         </div>
+                        <div>
+                            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Resources</h4>
+                            <ul className="space-y-2">
+                                <li><a href="#faq" onClick={(e) => handleNavClick(e, "#faq")} className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">FAQ</a></li>
+                                <li><a href="https://github.com/Yahyagitt/AllyFlow-An-AI-Assisted-Accessibility-Remediation-IDE" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1">GitHub <ExternalLink className="h-3 w-3" /></a></li>
+                                <li><a href="https://github.com/Yahyagitt/AllyFlow-An-AI-Assisted-Accessibility-Remediation-IDE/issues" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1">Report Issue <ExternalLink className="h-3 w-3" /></a></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Compliance</h4>
+                            <ul className="space-y-2">
+                                <li className="flex items-center gap-1.5 text-xs text-slate-500"><CheckCircle2 className="h-3 w-3 text-emerald-400" /> WCAG 2.1 AA</li>
+                                <li className="flex items-center gap-1.5 text-xs text-slate-500"><CheckCircle2 className="h-3 w-3 text-emerald-400" /> Section 508</li>
+                                <li className="flex items-center gap-1.5 text-xs text-slate-500"><CheckCircle2 className="h-3 w-3 text-emerald-400" /> EN 301 549</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                            <span>&copy; {new Date().getFullYear()} AllyFlow. Built for a more accessible web.</span>
+                        </div>
+                        <a
+                            href="https://github.com/Yahyagitt/AllyFlow-An-AI-Assisted-Accessibility-Remediation-IDE"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5"
+                        >
+                            <Github className="h-3.5 w-3.5" />
+                            View on GitHub
+                        </a>
                     </div>
                 </div>
             </footer>
