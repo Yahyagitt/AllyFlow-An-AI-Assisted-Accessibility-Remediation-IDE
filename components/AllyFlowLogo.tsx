@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 export default function AllyFlowLogo() {
   return (
     <motion.div
-      className="w-full max-w-4xl mx-auto select-none relative"
+      className="w-full max-w-4xl mx-auto select-none relative animate-float"
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}

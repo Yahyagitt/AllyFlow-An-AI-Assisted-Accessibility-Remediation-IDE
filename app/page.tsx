@@ -178,11 +178,30 @@ function StepCard({ step: { step, icon: Icon, title, description } }: { step: ty
 export default function LandingPage() {
     const { scansToday } = useDailyScans();
     const statsRef = useRef<HTMLDivElement>(null);
-    const [animatedScans, setAnimatedScans] = useState(0);
     const ctaRef = useRef<HTMLDivElement>(null);
+    const [statsVisible, setStatsVisible] = useState(false);
+    const [animatedScans, setAnimatedScans] = useState(0);
+    const [animatedPercent, setAnimatedPercent] = useState(0);
+    const [animatedViolations, setAnimatedViolations] = useState(0);
 
     useEffect(() => {
-        if (scansToday === 0) return;
+        const el = statsRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setStatsVisible(true);
+                    observer.unobserve(el);
+                }
+            },
+            { threshold: 0.3 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!statsVisible || scansToday === 0) return;
         const duration = 1500;
         const steps = 30;
         const increment = scansToday / steps;
@@ -197,9 +216,44 @@ export default function LandingPage() {
             }
         }, duration / steps);
         return () => clearInterval(timer);
-    }, [scansToday]);
+    }, [statsVisible, scansToday]);
 
-    const violationsFixed = scansToday * 8;
+    useEffect(() => {
+        if (!statsVisible) return;
+        const duration = 1500;
+        const steps = 30;
+        const increment = 100 / steps;
+        let current = 0;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= 100) {
+                setAnimatedPercent(100);
+                clearInterval(timer);
+            } else {
+                setAnimatedPercent(Math.floor(current));
+            }
+        }, duration / steps);
+        return () => clearInterval(timer);
+    }, [statsVisible]);
+
+    useEffect(() => {
+        if (!statsVisible || scansToday === 0) return;
+        const violations = scansToday * 8;
+        const duration = 1500;
+        const steps = 30;
+        const increment = violations / steps;
+        let current = 0;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= violations) {
+                setAnimatedViolations(violations);
+                clearInterval(timer);
+            } else {
+                setAnimatedViolations(Math.floor(current));
+            }
+        }, duration / steps);
+        return () => clearInterval(timer);
+    }, [statsVisible, scansToday]);
 
     function handleCtaMouseMove(e: React.MouseEvent<HTMLDivElement>) {
         if (!ctaRef.current) return;
@@ -237,9 +291,9 @@ export default function LandingPage() {
                         </span>
                     </div>
                     <nav className="hidden md:flex items-center gap-2 text-sm">
-                        <a href="#features" onClick={(e) => handleNavClick(e, "#features")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">Features</a>
-                        <a href="#how-it-works" onClick={(e) => handleNavClick(e, "#how-it-works")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">How It Works</a>
-                        <a href="#faq" onClick={(e) => handleNavClick(e, "#faq")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-300 hover:text-slate-100 hover:bg-white/[0.06]">FAQ</a>
+                        <a href="#features" onClick={(e) => handleNavClick(e, "#features")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-1000 hover:text-white hover:bg-[#2222E3]" style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>Features</a>
+                        <a href="#how-it-works" onClick={(e) => handleNavClick(e, "#how-it-works")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-1000 hover:text-white hover:bg-[#2222E3]" style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>How It Works</a>
+                        <a href="#faq" onClick={(e) => handleNavClick(e, "#faq")} className="px-3 py-1.5 rounded-lg text-slate-400 transition-all duration-1000 hover:text-white hover:bg-[#2222E3]" style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>FAQ</a>
                     </nav>
                     <div className="flex items-center gap-3">
                         <a
@@ -311,20 +365,35 @@ export default function LandingPage() {
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Human-in-the-Loop</span>
                     </div>
                     <div ref={statsRef} className="mt-12 flex items-center justify-center gap-14 text-center">
-                        <div>
-                            <div className="text-5xl font-light tracking-tight text-[#2222E3]">{animatedScans}</div>
-                            <div className="text-xs text-slate-500 mt-1.5">Scans Today</div>
-                        </div>
+                        <RevealOnScroll delay={0}>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="h-16 w-16 rounded-full bg-blue-400/10 animate-pulse-glow blur-xl" />
+                                </div>
+                                <div className="relative text-5xl font-light tracking-tight text-blue-400">{animatedScans}</div>
+                                <div className="relative text-xs text-slate-500 mt-1.5">Scans Today</div>
+                            </div>
+                        </RevealOnScroll>
                         <div className="w-px h-14 bg-white/[0.06]" />
-                        <div>
-                            <div className="text-5xl font-light tracking-tight text-emerald-400">100%</div>
-                            <div className="text-xs text-slate-500 mt-1.5">Open Source</div>
-                        </div>
+                        <RevealOnScroll delay={100}>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="h-16 w-16 rounded-full bg-emerald-400/10 animate-pulse-glow blur-xl" />
+                                </div>
+                                <div className="relative text-5xl font-light tracking-tight text-emerald-400">{animatedPercent}%</div>
+                                <div className="relative text-xs text-slate-500 mt-1.5">Open Source</div>
+                            </div>
+                        </RevealOnScroll>
                         <div className="w-px h-14 bg-white/[0.06]" />
-                        <div>
-                            <div className="text-5xl font-light tracking-tight text-slate-200">{violationsFixed}</div>
-                            <div className="text-xs text-slate-500 mt-1.5">Issues Fixed</div>
-                        </div>
+                        <RevealOnScroll delay={200}>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="h-16 w-16 rounded-full bg-slate-200/10 animate-pulse-glow blur-xl" />
+                                </div>
+                                <div className="relative text-5xl font-light tracking-tight text-slate-200">{animatedViolations}</div>
+                                <div className="relative text-xs text-slate-500 mt-1.5">Issues Fixed</div>
+                            </div>
+                        </RevealOnScroll>
                     </div>
                 </div>
             </section>
