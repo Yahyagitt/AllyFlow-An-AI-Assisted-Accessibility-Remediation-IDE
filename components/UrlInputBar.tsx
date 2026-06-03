@@ -44,7 +44,7 @@ export default function UrlInputBar({ status, onScan }: UrlInputBarProps) {
 
     const statusConfig = {
         idle: { label: "Ready to scan", dot: "bg-muted-foreground" },
-        scanning: { label: "Scanning…", dot: "bg-blue-400 animate-pulse" },
+        scanning: { label: "Scanning…", dot: "bg-[#2222E3] animate-pulse" },
         complete: { label: "Scan complete", dot: "bg-emerald-400" },
         error: { label: "Scan failed", dot: "bg-red-400" },
     };
@@ -53,7 +53,7 @@ export default function UrlInputBar({ status, onScan }: UrlInputBarProps) {
     return (
         <div className="glass-strong rounded-2xl p-5 glow-blue">
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-widest">
+                <h2 className="text-sm font-normal text-foreground/80 uppercase tracking-widest">
                     Accessibility Audit
                 </h2>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -76,7 +76,7 @@ export default function UrlInputBar({ status, onScan }: UrlInputBarProps) {
                             "w-full pl-10 pr-4 py-3 rounded-xl text-sm",
                             "bg-white/[0.05] border border-white/10",
                             "text-foreground placeholder:text-muted-foreground",
-                            "focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40",
+                            "focus:outline-none focus:ring-2 focus:ring-[#2222E3]/40 focus:border-[#2222E3]/40",
                             "transition-all duration-200 disabled:opacity-50"
                         )}
                     />
@@ -106,8 +106,8 @@ export default function UrlInputBar({ status, onScan }: UrlInputBarProps) {
                     className={cn(
                         "flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
                         isScanning
-                            ? "bg-blue-600/40 text-blue-200 border border-blue-500/30"
-                            : "bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50"
+                            ? "bg-[#2222E3]/40 text-[#2222E3]/80 border border-[#2222E3]/30"
+                            : "bg-[#2222E3] text-white hover:bg-[#2222E3]/80 shadow-lg shadow-[#2222E3]/20 active:scale-95 disabled:opacity-50"
                     )}
                 >
                     {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning</> : <><Zap className="w-4 h-4" /> Scan</>}

@@ -162,7 +162,7 @@ export default function PreviewModal({ html, scannedUrl, onClose }: PreviewModal
     return (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col">
             {/* ── Top banner ── */}
-            <div className="bg-[#252526] border-b border-slate-700/60 px-4 h-10 flex items-center justify-between flex-shrink-0">
+            <div className="bg-[#111113] border-b border-white/[0.06] px-4 h-10 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
                     {isUpload
                         ? <FileCode2 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -190,7 +190,7 @@ export default function PreviewModal({ html, scannedUrl, onClose }: PreviewModal
             <div className="flex-1 relative overflow-hidden">
                 {/* Loading spinner — visible while blob URL is being set or iframe loading */}
                 {(!blobUrl || !ready) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e] z-10">
+                    <div className="absolute inset-0 flex items-center justify-center bg-[#111113] z-10">
                         <Loader2 className="w-6 h-6 text-slate-500 animate-spin" />
                     </div>
                 )}
