@@ -13,6 +13,10 @@ export type { AxeViolation, ScanResponse, SeoCheck } from "@/lib/scan-types";
  * but they stay in the exact correct position in the DOM for the final download.
  */
 function sanitizeHtml(rawHtml: string): string {
+    // P17: Idempotency guard — if already sanitized (allyflow-script present), skip.
+    // handleRescan passes masterHtml (already sanitized) back through the scan pipeline.
+    // Without this guard, double-sanitization produces <allyflow-allyflow-script> tags.
+    if (rawHtml.includes("<allyflow-script")) return rawHtml;
     return rawHtml
         // 1. Put script tags to sleep (rename to <allyflow-script>)
         .replace(/<script\b/gi, "<allyflow-script")
@@ -40,7 +44,11 @@ function injectSyntheticViolations(
     });
 
     // SYNTHETIC 1: image-alt-filename
-    if (!existingIds.has("image-alt-filename")) {
+    // P18: Merge-mode — if axe already flagged image-alt-filename, ADD our synthetic nodes
+    // to the existing violation instead of skipping. This ensures all bad-alt images are
+    // covered even when axe only catches a subset.
+    {
+        const existingViolation = existingViolations.find(v => v.id === "image-alt-filename");
         const imgRegex = /<img\b[^>]*\balt=["']([^"']+)["'][^>]*>/gi;
         const nodes: { html: string; target: string[] }[] = [];
         let m: RegExpExecArray | null;
@@ -55,12 +63,50 @@ function injectSyntheticViolations(
                 altVal.trim().length === 1;
             if (isFilePath) nodes.push({ html: m[0], target: ["img"] });
         }
-        if (nodes.length > 0) synthetic.push(makeViolation(
-            "image-alt-filename", "serious",
-            "Image alt text is a file path or generic word, not a description",
-            "Alt text that is a filename, URL, or generic term like 'image' does not convey meaning to screen reader users.",
-            nodes
-        ));
+
+        // P11 empty-alt pass (merged here for single-pass efficiency — Bug 5 fix).
+        // axe passes alt="" as "intentionally decorative" — but many real pages use alt=""
+        // on product/hero images carelessly. We flag these so the heal route can apply
+        // deriveAltFromFilename or pageContext fallback.
+        // Guard: skip genuinely decorative patterns (spacer, pixel, divider, icon, etc.)
+        const emptyAltImgRegex2 = /<img\b[^>]*\balt=["']["'][^>]*>/gi;
+        let emm2: RegExpExecArray | null;
+        while ((emm2 = emptyAltImgRegex2.exec(sanitizedHtml)) !== null) {
+            const imgTag = emm2[0];
+            const srcVal = (imgTag.match(/\bsrc=["']([^"']+)["']/i) ?? [])[1] ?? "";
+            if (!srcVal) continue;
+            const isDecorativeSrc = /\b(spacer|pixel|blank|transparent|1x1|divider|separator|dot|border|bg|background|texture|noise|grain|shadow|gradient|overlay|mask|logo|icon)\b/i.test(srcVal);
+            if (isDecorativeSrc) continue;
+            if (/^data:|^blob:/i.test(srcVal)) continue;
+            const hasReadablePath = /\/[a-zA-Z][a-zA-Z0-9_-]{2,}\.[a-z]{2,5}(\?|$)/i.test(srcVal) ||
+                /https?:\/\/[^/]+\//.test(srcVal);
+            if (!hasReadablePath) continue;
+            if (nodes.some(n => n.html === imgTag)) continue;
+            nodes.push({ html: imgTag, target: ["img[alt='']"] });
+        }
+
+        if (nodes.length > 0) {
+            if (existingViolation) {
+                // Merge: add synthetic nodes not already in the axe violation
+                const existingHtmls = new Set(existingViolation.nodes.map(n => n.html));
+                for (const node of nodes) {
+                    if (!existingHtmls.has(node.html)) {
+                        existingViolation.nodes.push({
+                            html: node.html,
+                            failureSummary: "Alt text is a filename, URL, or generic term",
+                            target: node.target,
+                        });
+                    }
+                }
+            } else {
+                synthetic.push(makeViolation(
+                    "image-alt-filename", "serious",
+                    "Image alt text is a file path or generic word, not a description",
+                    "Alt text that is a filename, URL, or generic term like 'image' does not convey meaning to screen reader users.",
+                    nodes
+                ));
+            }
+        }
     }
 
     // SYNTHETIC 2: keyboard-unreachable (naturally focusable + tabindex="-1")
@@ -105,6 +151,133 @@ function injectSyntheticViolations(
         }
     }
 
+    // SYNTHETIC 4: aria-pressed-static — aria-pressed="true" on non-toggle buttons
+    // v22: Reverted v21 rawHtml reverse-normalization (was wrong direction — masterHtml is always
+    // sanitized/data-af-onclick form; storing onclick form caused guaranteed fingerprint mismatch).
+    // v22: Full-element capture instead of opening-tag-only. Opening tag was too fragile —
+    // prior fixes applied in the same session could shift surrounding structure, invalidating
+    // the exact opening-tag string. Full element is more unique and survives adjacent changes.
+    // Targets <button> only — div/span/a variants are converted to <button> by prior fake-btn fixes
+    // and no longer exist in masterHtml in their original div/span/a form.
+    if (!existingIds.has("aria-pressed-static")) {
+        const nodes: { html: string; target: string[] }[] = [];
+        // Full-element capture: match opening tag, walk to closing </button> using depth counter.
+        const pressedOpenRegex = /<button\b[^>]*\baria-pressed=["']true["'][^>]*>/gi;
+        let m: RegExpExecArray | null;
+        while ((m = pressedOpenRegex.exec(sanitizedHtml)) !== null) {
+            const openTag = m[0];
+            const isToggle = /\b(aria-expanded|aria-controls)\s*=/i.test(openTag) ||
+                /\b(toggle|switch|expand|collapse|mute)\b/i.test(openTag);
+            if (isToggle) continue;
+            // Walk forward from end of opening tag to find matching </button>
+            let depth = 1;
+            let pos = m.index + openTag.length;
+            const closeRe = /<button\b[^>]*>|<\/button>/gi;
+            closeRe.lastIndex = pos;
+            let closeEnd = pos;
+            let dm: RegExpExecArray | null;
+            while (depth > 0 && (dm = closeRe.exec(sanitizedHtml)) !== null) {
+                if (/^<button\b/i.test(dm[0])) depth++;
+                else { depth--; if (depth === 0) closeEnd = dm.index + dm[0].length; }
+            }
+            if (depth !== 0) continue; // malformed — skip
+            const fullElement = sanitizedHtml.slice(m.index, closeEnd);
+            nodes.push({ html: fullElement, target: ["button[aria-pressed='true']"] });
+        }
+        if (nodes.length > 0) synthetic.push(makeViolation(
+            "aria-pressed-static", "serious",
+            "aria-pressed='true' on a non-toggle button is a static state that cannot change",
+            "aria-pressed indicates a toggle state. A static permanent 'true' value misleads screen reader users into thinking a state change will occur.",
+            nodes
+        ));
+    }
+
+    // SYNTHETIC 5: redundant-button-role — role="button" on native <button>
+    // v22: Reverted v21 rawHtml reverse-normalization (same wrong-direction issue as SYNTHETIC 4).
+    // v22: Full-element capture — captures complete <button>...</button> so findCurrentNodeHtml
+    // has a more unique, resilient search string that survives adjacent structural changes.
+    if (!existingIds.has("redundant-button-role")) {
+        const nodes: { html: string; target: string[] }[] = [];
+        const redundantOpenRegex = /<button\b[^>]*\brole=["']button["'][^>]*>/gi;
+        let m: RegExpExecArray | null;
+        while ((m = redundantOpenRegex.exec(sanitizedHtml)) !== null) {
+            const openTag = m[0];
+            // Full-element depth-counter walk to closing </button>
+            let depth = 1;
+            let pos = m.index + openTag.length;
+            const closeRe = /<button\b[^>]*>|<\/button>/gi;
+            closeRe.lastIndex = pos;
+            let closeEnd = pos;
+            let dm: RegExpExecArray | null;
+            while (depth > 0 && (dm = closeRe.exec(sanitizedHtml)) !== null) {
+                if (/^<button\b/i.test(dm[0])) depth++;
+                else { depth--; if (depth === 0) closeEnd = dm.index + dm[0].length; }
+            }
+            if (depth !== 0) continue; // malformed — skip
+            const fullElement = sanitizedHtml.slice(m.index, closeEnd);
+            nodes.push({ html: fullElement, target: ["button[role=button]"] });
+        }
+        if (nodes.length > 0) synthetic.push(makeViolation(
+            "redundant-button-role", "moderate",
+            "role='button' on a native <button> element is redundant",
+            "Native <button> elements already have implicit button semantics. Adding role='button' is unnecessary and can confuse some assistive technologies.",
+            nodes
+        ));
+    }
+
+    // SYNTHETIC 6: color-contrast-inline
+    // Root cause this fixes: axe reports color-contrast violations with RGB node HTML
+    // (e.g. style="color: rgb(204, 204, 204)") but masterHtml contains hex source
+    // (e.g. style="color:#cccccc"). findCurrentNodeHtml in studio does a string search —
+    // RGB !== hex → fingerprint miss → fix silently skipped every time.
+    //
+    // Solution: scan sanitizedHtml (hex source) directly. The synthetic violation's html
+    // field IS the sanitized source string → findCurrentNodeHtml always matches it.
+    // The offline case "color-contrast-inline" applies PATH A logic (same YIQ formula).
+    //
+    // Scope: <p>, <span>, <div>, <li>, <td>, <th>, <a>, <h1>-<h6> with inline
+    // style="color:#hex" where YIQ brightness > 180 (i.e. light text on presumed white bg).
+    // Guard: skips elements that also have background-color in the same inline style
+    // (those are handled correctly by axe + PATH A since the bg is inline and renders consistently).
+    // Guard: skips if axe already produced a color-contrast violation for this exact html string
+    // (avoids double-fixing the rare case where fingerprint DOES match).
+    if (!existingIds.has("color-contrast-inline")) {
+        const inlineColorRegex = /<(p|span|div|li|td|th|a|h[1-6])\b([^>]*\bstyle=["'][^"']*(?<![a-z-])color\s*:\s*#([0-9a-fA-F]{3,6})[^"']*["'][^>]*)>/gi;
+        const ccNodes: { html: string; target: string[] }[] = [];
+        const existingCcHtmls = new Set(
+            existingViolations
+                .filter(v => v.id === "color-contrast")
+                .flatMap(v => v.nodes.map(n => n.html))
+        );
+        let ccm: RegExpExecArray | null;
+        while ((ccm = inlineColorRegex.exec(sanitizedHtml)) !== null) {
+            const openTag = ccm[0];
+            const styleContent = openTag.match(/\bstyle=["']([^"']*)["']/i)?.[1] ?? "";
+            // Skip if background-color also in inline style — axe handles those correctly
+            if (/\bbackground-color\s*:/i.test(styleContent) || /(?<!background-)background\s*:/i.test(styleContent)) continue;
+            const hexRaw = styleContent.match(/(?<![a-z-])color\s*:\s*#([0-9a-fA-F]{3,6})/i)?.[1] ?? "";
+            if (!hexRaw) continue;
+            const hex = hexRaw.length === 3 ? hexRaw.split('').map(c => c + c).join('') : hexRaw;
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            // v21: Threshold corrected from <= 180 → <= 128, matching detectCssClassContrast scanner.
+            // Catches #aaaaaa (170), #999 (153), #888 (136). Skips #767676 (118 — WCAG AA passing).
+            if (brightness <= 128) continue;
+            // Skip if axe already flagged this exact source string (fingerprint matched)
+            if (existingCcHtmls.has(openTag)) continue;
+            ccNodes.push({ html: openTag, target: [`${ccm[1]}[style*="color"]`] });
+        }
+        if (ccNodes.length > 0) {
+            synthetic.push(makeViolation(
+                "color-contrast-inline", "serious",
+                "Element has low-contrast inline text color",
+                "Inline style sets a text color with insufficient contrast against white background (WCAG AA requires 4.5:1). Detected from source HTML to avoid Puppeteer RGB\u2192hex fingerprint mismatch.",
+                ccNodes
+            ));
+        }
+    }
     return [...existingViolations, ...synthetic];
 }
 

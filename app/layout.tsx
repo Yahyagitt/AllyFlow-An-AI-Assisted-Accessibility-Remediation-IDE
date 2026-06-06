@@ -17,6 +17,10 @@ export const metadata: Metadata = {
     description:
         "Scan any web page for accessibility violations and get AI-powered fixes. Powered by axe-core and Gemini AI.",
     keywords: ["accessibility", "a11y", "WCAG", "audit", "AI", "axe-core"],
+    icons: {
+        icon: "/logo.jpeg",
+        apple: "/logo.jpeg",
+    },
 };
 
 export default function RootLayout({

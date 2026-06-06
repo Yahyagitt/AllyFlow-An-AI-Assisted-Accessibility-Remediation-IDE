@@ -58,6 +58,7 @@ interface DiffViewerProps {
     theme?: "vs-dark" | "vs";
     onApplyFix?: (violationId: string, fullNewHtml: string) => void;
     onRefix?: () => void;
+    onDismissFix?: () => void;
     onRescan?: () => void;
     onToggleTheme?: () => void;
 }
@@ -75,6 +76,7 @@ export default function DiffViewer({
     theme = "vs-dark",
     onApplyFix,
     onRefix,
+    onDismissFix,
     onRescan,
     onToggleTheme,
 }: DiffViewerProps) {
@@ -187,7 +189,7 @@ export default function DiffViewer({
 
     return (
         <section className="flex flex-col h-full bg-[#111113] border-l border-white/[0.06]" aria-label="Code diff viewer">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[38px]">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[38px] flex-wrap gap-y-1">
                 <div className="flex items-center gap-2">
                     <SplitSquareHorizontal className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-normal text-slate-300 uppercase tracking-widest">
@@ -222,11 +224,14 @@ export default function DiffViewer({
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 text-[11px]">
-                        <span className="flex items-center gap-1 text-red-400/70"><FileCode className="w-3 h-3" /> Original File</span>
-                        <span className="text-slate-600">→</span>
-                        <span className="flex items-center gap-1 text-emerald-400/70"><Code2 className="w-3 h-3" /> Fixed (Editable)</span>
-                    </div>
+                    {/* v15: Hide legend when fix is pending — frees space for Apply/Regenerate/Dismiss */}
+                    {!hasHealResult && (
+                        <div className="hidden sm:flex items-center gap-2 text-[11px]">
+                            <span className="flex items-center gap-1 text-red-400/70"><FileCode className="w-3 h-3" /> Original File</span>
+                            <span className="text-slate-600">→</span>
+                            <span className="flex items-center gap-1 text-emerald-400/70"><Code2 className="w-3 h-3" /> Fixed (Editable)</span>
+                        </div>
+                    )}
 
                     {showApplyButton && onApplyFix && (
                         <button
@@ -245,6 +250,17 @@ export default function DiffViewer({
                             className="text-[11px] text-slate-500 hover:text-slate-300 underline transition-colors"
                         >
                             Regenerate fix
+                        </button>
+                    )}
+                    {/* v13: Dismiss button — clears pending fix, re-enables all Fix with AI buttons */}
+                    {hasHealResult && onDismissFix && (
+                        <button
+                            type="button"
+                            onClick={onDismissFix}
+                            className="text-[11px] text-slate-500 hover:text-red-400 underline transition-colors"
+                            title="Discard this fix and unlock Fix with AI for other elements"
+                        >
+                            Dismiss fix
                         </button>
                     )}
                 </div>

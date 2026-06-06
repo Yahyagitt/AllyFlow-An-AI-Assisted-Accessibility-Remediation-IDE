@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<!-- WCAG FAIL: Missing lang attribute (1.3.1 / 3.1.1) -->
+<html>
+<head>
+    <!-- WCAG FAIL: Missing <title> tag (2.4.2) -->
+    <!-- SEO FAIL: No meta description -->
+    <!-- SEO FAIL: No canonical link -->
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            padding: 40px;
+            background: #f0f0f0;
+        }
+
+        /* WCAG FAIL: focus outline suppressed (2.4.7) */
+        * {
+            outline: none;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        /* WCAG FAIL: Color contrast too low — light gray text on white (1.4.3) */
+        .low-contrast {
+            color: #aaaaaa;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .section {
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        /* WCAG FAIL: Color alone used to indicate required fields (1.4.1) */
+        .required-field {
+            border: 2px solid red;
+        }
+
+        .btn {
+            background: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+
+        /* WCAG FAIL: Fake interactive element not reachable by keyboard */
+        .fake-btn {
+            background: #000000;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .product-card {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .badge-red { background: red; }
+        .badge-green { background: green; }
+        .badge-yellow { background: #f59e0b; }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 1: Basic structure violations
+    ════════════════════════════════════════════════════════════ -->
+    <div class="header">
+        <!-- WCAG FAIL: Two <h1> tags on same page, broken heading hierarchy -->
+        <h1>AllyFlow Demo Store</h1>
+        <div>
+            <!-- WCAG FAIL: Icon-only link with no accessible label -->
+            <a href="/cart" tabindex="-1">🛒</a>
+            <!-- WCAG FAIL: tabindex="-1" removes from tab order (Best Practices) -->
+            <a href="/help" tabindex="-1">Help</a>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 2: Images — alt text violations (1.1.1)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h1>Featured Products</h1>
+        <!-- WCAG FAIL: Missing alt attribute entirely -->
+        <img src="https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=400"
+             width="300" style="border-radius:8px; margin-bottom:12px; display:block;">
+
+        <!-- WCAG FAIL: Empty alt on a meaningful image -->
+        <img src="https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=400"
+             alt="" width="300" style="border-radius:8px; margin-bottom:12px; display:block;">
+
+        <!-- WCAG FAIL: Non-descriptive alt text -->
+        <img src="https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=400"
+             alt="image" width="300" style="border-radius:8px; display:block;">
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 3: Color contrast violations (1.4.3)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Special Offers</h2>
+        <!-- WCAG FAIL: Very low contrast — gray on white -->
+        <p class="low-contrast">
+            Today only: Get 30% off all electronics. Use code SAVE30 at checkout.
+            This offer expires at midnight and cannot be combined with other promotions.
+        </p>
+        <!-- WCAG FAIL: Light yellow text on white -->
+        <p style="color: #e8e800; background: #ffffff; padding: 10px;">
+            ⚠️ Limited stock available — only 3 items left!
+        </p>
+        <!-- WCAG FAIL: Color alone conveys status (1.4.1) -->
+        <p style="margin-top:12px; font-size:13px;">
+            Order status:
+            <span class="badge badge-red"></span> Delayed
+            <span class="badge badge-green"></span> Shipped
+            <span class="badge badge-yellow"></span> Processing
+        </p>
+        <p style="font-size:12px; color:#999;">
+            (Color is the only indicator of order status — no text label)
+        </p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 4: Form violations (1.3.1, 3.3.x)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Create an Account</h2>
+
+        <!-- WCAG FAIL: Input with no label, placeholder only (Best Practices — persistent label) -->
+        <input type="text" placeholder="Full Name"
+               style="display:block; width:100%; padding:10px; margin-bottom:12px;
+                      border-radius:6px; border:1px solid #ccc; box-sizing:border-box;">
+
+        <!-- WCAG FAIL: Input with no label at all -->
+        <input type="email" placeholder="Email Address"
+               style="display:block; width:100%; padding:10px; margin-bottom:12px;
+                      border-radius:6px; border:1px solid #ccc; box-sizing:border-box;">
+
+        <!-- WCAG FAIL: Required field indicated only by red border (color only) -->
+        <input type="password" placeholder="Password" class="required-field"
+               style="display:block; width:100%; padding:10px; margin-bottom:4px;
+                      border-radius:6px; box-sizing:border-box;">
+        <p style="font-size:11px; color:#999; margin-bottom:12px;">
+            Red border = required (no text indicator)
+        </p>
+
+        <!-- WCAG FAIL: Fake custom checkbox (Best Practices — fake form control) -->
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="width:18px; height:18px; border:2px solid #333; border-radius:3px;
+                        cursor:pointer;" onclick="this.style.background='#2563eb'">
+            </div>
+            <span style="font-size:14px;">I agree to the terms and conditions</span>
+        </div>
+
+        <!-- WCAG FAIL: Fake custom radio buttons (Best Practices — fake form control) -->
+        <p style="font-size:14px; margin-bottom:8px;">Account type:</p>
+        <div style="display:flex; gap:16px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <div style="width:16px; height:16px; border:2px solid #333; border-radius:50%;
+                            cursor:pointer;" onclick="this.style.background='#2563eb'"></div>
+                <span style="font-size:13px;">Personal</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <div style="width:16px; height:16px; border:2px solid #333; border-radius:50%;
+                            cursor:pointer;" onclick="this.style.background='#2563eb'"></div>
+                <span style="font-size:13px;">Business</span>
+            </div>
+        </div>
+
+        <!-- WCAG FAIL: Button is a <div>, not a <button> (Best Practices — semantic button) -->
+        <div class="fake-btn" onclick="alert('Form submitted!')">
+            Create Account
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 5: ARIA violations (4.1.2)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Shopping Cart</h2>
+
+        <!-- WCAG FAIL: Invalid ARIA attribute value -->
+        <div role="button" aria-pressed="yes" class="fake-btn"
+             onclick="alert('Added to cart')">
+            Add to Cart
+        </div>
+
+        <!-- WCAG FAIL: role=button on a div with no keyboard support (motor) -->
+        <div role="button" style="display:inline-block; background:#16a34a; color:white;
+             padding:10px 20px; border-radius:6px; cursor:pointer; margin-top:8px;
+             font-weight:bold;" onclick="alert('Checkout!')">
+            Proceed to Checkout
+        </div>
+
+        <!-- WCAG FAIL: Interactive element with no accessible name -->
+        <button style="margin-top:12px; padding:8px 16px; border-radius:6px;
+                       border:1px solid #ccc; cursor:pointer; display:block;">
+            <img src="https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=20"
+                 width="20" height="20">
+        </button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 6: Navigation & landmark violations
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Browse Categories</h2>
+
+        <!-- WCAG FAIL: No main landmark on page -->
+        <!-- WCAG FAIL: Links that open new tab with no warning (Best Practices) -->
+        <p style="font-size:14px; margin-bottom:12px;">
+            Check out our
+            <a href="https://example.com/electronics" target="_blank"
+               style="color:#2563eb;">Electronics</a>,
+            <a href="https://example.com/clothing" target="_blank"
+               style="color:#2563eb;">Clothing</a>, and
+            <a href="https://example.com/books" target="_blank"
+               style="color:#2563eb;">Books</a> sections.
+        </p>
+        <!-- (All open in new tab with no screen reader warning) -->
+
+        <!-- WCAG FAIL: Keyboard trap — focus gets stuck in this div -->
+        <div tabindex="0" style="border:2px dashed #ccc; padding:16px; border-radius:8px;"
+             onkeydown="event.preventDefault()">
+            <p style="font-size:13px; color:#666; margin:0;">
+                🚨 Keyboard trap demo: Tab into this box and you cannot leave
+                (onkeydown prevents all key events including Tab)
+            </p>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 7: Product grid (mixed violations)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Recommended for You</h2>
+        <div class="product-grid">
+            <!-- Product 1: missing alt -->
+            <div class="product-card">
+                <img src="https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=200"
+                     width="100%" style="border-radius:6px;">
+                <p style="font-weight:bold; margin:8px 0 4px;">Running Shoes</p>
+                <!-- WCAG FAIL: Low contrast price text -->
+                <p style="color:#cccccc; font-size:13px;">$89.99</p>
+                <div class="fake-btn" style="font-size:13px; padding:8px 12px;"
+                     onclick="alert('Added!')">Add to Cart</div>
+            </div>
+
+            <!-- Product 2: no label on quantity input -->
+            <div class="product-card">
+                <img src="https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=200"
+                     alt="" width="100%" style="border-radius:6px;">
+                <p style="font-weight:bold; margin:8px 0 4px;">Smartphone</p>
+                <p style="color:#cccccc; font-size:13px;">$699.99</p>
+                <input type="number" placeholder="Qty"
+                       style="width:60px; padding:6px; border:1px solid #ccc;
+                              border-radius:4px; margin-bottom:8px;">
+                <div class="fake-btn" style="font-size:13px; padding:8px 12px;"
+                     onclick="alert('Added!')">Add to Cart</div>
+            </div>
+
+            <!-- Product 3: button with icon only, no label -->
+            <div class="product-card">
+                <img src="https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=200"
+                     alt="" width="100%" style="border-radius:6px;">
+                <p style="font-weight:bold; margin:8px 0 4px;">Perfume</p>
+                <p style="color:#cccccc; font-size:13px;">$49.99</p>
+                <button class="btn" style="font-size:13px; padding:8px 12px; border:none;">
+                    🛒
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SECTION 8: Hibernation test — scripts must survive
+    ════════════════════════════════════════════════════════════ -->
+    <div class="section">
+        <h2>Live Cart Counter</h2>
+        <p style="font-size:14px;">Items in cart: <span id="cart-count"
+           style="font-weight:bold; color:#2563eb;">0</span></p>
+        <button class="btn" style="border:none;" onclick="addToCart()">
+            + Add Item
+        </button>
+        <button class="btn" style="border:none; background:#dc2626;"
+                onclick="clearCart()">
+            Clear Cart
+        </button>
+    </div>
+
+    <script>
+        // HIBERNATION TEST: These functions must survive AllyFlow scanning
+        let count = 0;
+        function addToCart() {
+            count++;
+            document.getElementById('cart-count').innerText = count;
+            console.log('Cart updated:', count);
+        }
+        function clearCart() {
+            count = 0;
+            document.getElementById('cart-count').innerText = 0;
+        }
+    </script>
+
+</body>
+</html>

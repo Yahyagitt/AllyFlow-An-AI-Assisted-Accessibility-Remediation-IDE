@@ -172,7 +172,7 @@ export default function AuditResults({
 
     const unresolvedViolations = useMemo(() =>
         violations.filter(v => !v.nodes.every((_, i) => resolvedIds.has(`${v.id}-${i}`))),
-    [violations, resolvedIds]);
+        [violations, resolvedIds]);
 
     const unresolvedBpNodeCount = useMemo(() =>
         bpViolations.reduce((s, v) => {
@@ -180,13 +180,27 @@ export default function AuditResults({
             const resolved = v.nodes.filter((_, i) => bpResolvedIds.has(`${v.id}-${i}`)).length;
             return s + total - resolved;
         }, 0),
-    [bpViolations, bpResolvedIds]);
+        [bpViolations, bpResolvedIds]);
 
+    // v15 Bug 1: Count unresolved NODES per impact level, not unresolved CARDS.
+    // Previous card-level count only decremented when ALL nodes of a card were fixed.
+    // Node-level count decrements immediately when any single node is fixed,
+    // giving the user real-time feedback in the impact summary boxes.
+    // unresolvedViolations (card-level filter) is intentionally kept for the
+    // scrollable list — cards stay visible until all their nodes are resolved.
     const counts = {
-        critical: unresolvedViolations.filter((v) => v.impact === "critical").length,
-        serious: unresolvedViolations.filter((v) => v.impact === "serious").length,
-        moderate: unresolvedViolations.filter((v) => v.impact === "moderate").length,
-        minor: unresolvedViolations.filter((v) => v.impact === "minor" || !v.impact).length,
+        critical: violations
+            .filter((v) => v.impact === "critical")
+            .reduce((sum, v) => sum + v.nodes.filter((_, i) => !resolvedIds.has(`${v.id}-${i}`)).length, 0),
+        serious: violations
+            .filter((v) => v.impact === "serious")
+            .reduce((sum, v) => sum + v.nodes.filter((_, i) => !resolvedIds.has(`${v.id}-${i}`)).length, 0),
+        moderate: violations
+            .filter((v) => v.impact === "moderate")
+            .reduce((sum, v) => sum + v.nodes.filter((_, i) => !resolvedIds.has(`${v.id}-${i}`)).length, 0),
+        minor: violations
+            .filter((v) => v.impact === "minor" || !v.impact)
+            .reduce((sum, v) => sum + v.nodes.filter((_, i) => !resolvedIds.has(`${v.id}-${i}`)).length, 0),
     };
 
     return (
@@ -195,7 +209,7 @@ export default function AuditResults({
             <div className="flex items-center justify-between px-4 py-2 bg-[#111113] border-b border-white/[0.06] flex-shrink-0 min-h-[48px]">
                 {status === "complete" ? (
                     <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700/50">
-                        <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{unresolvedViolations.length}</span></button>
+                        <button onClick={() => setView("a11y")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "a11y" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Accessibility<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{/* v12: count unresolved NODES not cards — matches BP panel behavior */}{violations.reduce((sum, v) => sum + v.nodes.filter((_, i) => !resolvedIds.has(`${v.id}-${i}`)).length, 0)}</span></button>
                         <button onClick={() => setView("seo")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "seo" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>SEO Health<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{seoResults.filter(s => s.status === "fail").length}</span></button>
                         <button onClick={() => setView("bp")} className={cn("flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-colors", view === "bp" ? "bg-slate-700 text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-300")}>Best Practices<span className="bg-slate-800 text-slate-400 px-1.5 rounded-full text-[9px]">{unresolvedBpNodeCount}</span></button>
                     </div>
@@ -203,7 +217,8 @@ export default function AuditResults({
                 {healStatus === "healing" && view === "a11y" && <span className="flex items-center gap-1 text-[11px] text-[#2222E3] animate-pulse"><Loader2 className="w-3 h-3 animate-spin" />Healing…</span>}
             </div>
 
-            {status === "complete" && view === "a11y" && unresolvedViolations.length > 0 && (
+            {/* v16: Show grid whenever scan has results — 0/0/0/0 is correct "all fixed" feedback */}
+            {status === "complete" && view === "a11y" && violations.length > 0 && (
                 <div className="grid grid-cols-4 gap-1.5 px-3 py-2.5 bg-slate-900/40 border-b border-slate-700/30 flex-shrink-0">
                     {(Object.entries(counts) as [Impact, number][]).map(([impact, count]) => {
                         const cfg = IMPACT_CONFIG[impact];
@@ -265,7 +280,7 @@ export default function AuditResults({
                         loading={bpLoading}
                         healingId={bpHealingId}
                         resolvedIds={bpResolvedIds}
-                        onFix={onBpFix ?? (() => {})}
+                        onFix={onBpFix ?? (() => { })}
                     />
                 )}
 

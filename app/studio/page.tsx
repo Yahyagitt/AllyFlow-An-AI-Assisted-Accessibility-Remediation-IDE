@@ -49,12 +49,51 @@ function findCurrentNodeHtml(staleSnapshot: string, html: string): string | null
         /\baria-label=["']([^"']+)["']/i,
         /\bclass=["']([^"']+)["']/i,
         /\brole=["']([^"']+)["']/i,
+        // P9: Extended fingerprints — cover elements that have ONLY tabindex, style, or
+        // keydown trap attributes (no id/class/role/aria). Without these, keyboard-trap
+        // nodes return null and silently skip the fix as "already replaced".
+        /\bdata-af-onkeydown=["']([^"']+)["']/i,
+        /\btabindex=["']([^"']+)["']/i,
+        /\bstyle=["']([^"']{8,60})/i,              // first 8-60 chars of style — enough to fingerprint, not so much it breaks on mutation
+        /\bdata-af-onmouseover=["']([^"']+)["']/i, // catches hover-only traps too
     ];
     let fingerprint: string | null = null;
     for (const pat of attrPatterns) {
         const m = staleSnapshot.match(pat);
         if (m) { fingerprint = m[0]; break; }
     }
+
+    // v13: Multi-property structural style fingerprint (replaces v12 single-property version).
+    // Fires when attrPatterns exhausted — element has only inline style, no id/class/role/data attrs.
+    // Color-contrast fixes prepend color:/background-color: to existing style strings.
+    // Structural properties (display, padding, border-radius, flex, etc.) are NEVER rewritten
+    // by any AllyFlow fix, making them stable fingerprints across multiple fix passes.
+    // Strategy: extract ALL structural properties, try from LAST to FIRST (last is most
+    // stable since prepended properties push originals toward the end), verify each candidate
+    // exists in the live masterHtml before committing.
+    if (!fingerprint) {
+        const styleVal = (staleSnapshot.match(/\bstyle=["']([^"']+)["']/i) ?? [])[1] ?? "";
+        if (styleVal) {
+            const STRUCTURAL_PROPS = /\b(display|padding(?:-(?:top|right|bottom|left))?|margin(?:-(?:top|right|bottom|left))?|border(?:-radius|-width|-style|-top|-right|-bottom|-left)?|width|min-width|max-width|height|min-height|max-height|font-size|font-weight|font-family|cursor|position|flex(?:-direction|-wrap|-grow|-shrink|-basis)?|gap|align-items|justify-content|text-align|overflow(?:-x|-y)?|visibility|z-index|transform|transition|box-shadow|letter-spacing|line-height)\s*:[^;]+/gi;
+            const allStructural = [...styleVal.matchAll(STRUCTURAL_PROPS)].map(m => m[0]);
+            for (let i = allStructural.length - 1; i >= 0; i--) {
+                const candidate = allStructural[i].trim();
+                if (candidate.length >= 6) {
+                    const escapedCandidate = candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    if (new RegExp(escapedCandidate, "i").test(html)) {
+                        fingerprint = `style="${escapedCandidate}`;
+                        break;
+                    }
+                }
+            }
+            // Final fallback: first structural property without html verification
+            if (!fingerprint && allStructural.length > 0) {
+                const escapedFallback = allStructural[0].trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                fingerprint = `style="${escapedFallback}`;
+            }
+        }
+    }
+    // v13: fingerprint exhausted — caller shows retry toast, does NOT auto-resolve.
     if (!fingerprint) return null;
 
     // 4. Escape fingerprint for use in regex
@@ -411,7 +450,7 @@ export default function DashboardPage() {
             };
             setRecentScans(prev => {
                 const updated = [newScan, ...prev].slice(0, 5);
-                try { sessionStorage.setItem("allyflow-recent-scans", JSON.stringify(updated)); } catch {}
+                try { sessionStorage.setItem("allyflow-recent-scans", JSON.stringify(updated)); } catch { }
                 return updated;
             });
 
@@ -433,6 +472,12 @@ export default function DashboardPage() {
                     if (bpRes.ok) {
                         const bpData = await bpRes.json();
                         setBpViolations(bpData.violations ?? []);
+                        // P12: Reset resolved sets when a fresh scan completes — prevents stale resolved IDs
+                        // from prior scans ghosting the counter on the new scan's violations.
+                        // resolvedIds and bpResolvedIds are already reset at scan start (in the handleScan
+                        // state reset block above), but best-practices scan fires async AFTER axe scan completes.
+                        // This explicit reset in the BP callback ensures BP cards start unresolved on rescan.
+                        setBpResolvedIds(new Set());
                     }
                 } catch {
                     // Best practices scan is non-critical — silently ignore
@@ -470,6 +515,21 @@ export default function DashboardPage() {
         lastFixViolationRef.current = violation;
         lastFixIsBpRef.current = false;
 
+        // P13: Guard against concurrent heal calls — rapid double-click corrupts sentinel state.
+        if (healStatus === "healing") return;
+        // v13 Bug C: Guard against starting a new fix while a fix is pending review.
+        // When healStatus === "done" and healResult !== null, a pending fix exists in the
+        // diff. Starting a new fix injects a second sentinel, corrupting healResult.original
+        // so handleApplyFix can no longer locate the first fix's node via indexOf.
+        // The user must apply or dismiss (via Regenerate fix) the current pending fix first.
+        if (healStatus === "done" && healResult !== null) {
+            toast("Please apply or regenerate the current pending fix before fixing another element.", {
+                duration: 4000,
+                icon: "⚠️",
+            });
+            return;
+        }
+
         setHealStatus("healing");
         setHealingViolationId(nodeId); // Track the specific node
         setHealResult(null);
@@ -486,13 +546,22 @@ export default function DashboardPage() {
         // div→button); sending the stale snapshot would cause a no-op diff.
         const currentNodeHtml = findCurrentNodeHtml(sanitizedNodeHtml, stripSentinel(masterHtml ?? ""));
         if (currentNodeHtml === null) {
-            // Node is entirely gone — replaced by a previous fix
-            setResolvedIds((prev) => new Set([...prev, nodeId]));
-            setHealResult(null);           // clear stale diff — don't show wrong node's diff
+            // v12 Bug 1+3 fix: findCurrentNodeHtml returning null has TWO causes:
+            // (a) Node genuinely replaced by a prior fix — correct to skip.
+            // (b) Node's inline style was mutated (e.g. color-contrast fix), changing
+            //     the fingerprint so the regex no longer matches — WRONG to auto-resolve.
+            // We cannot reliably distinguish (a) from (b) here without re-running the scan.
+            // Safe resolution: DO NOT auto-resolve. Reset state and show an informational
+            // toast. The button stays enabled. User can click again (which re-runs fuzzy
+            // lookup with the updated masterHtml) or edit manually.
+            // The genuine "already replaced" case (a) is correctly handled downstream by
+            // the no-op guard: stripSentinel(data.original) === stripSentinel(data.fixed).
+            setHealResult(null);
             setHealStatus("idle");
             setHealingViolationId(null);
-            toast.success("Node already replaced by a previous repair — skipped.", {
-                icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+            setMasterHtml(prev => prev ? stripSentinel(prev) : prev); // clean up any partial sentinel
+            toast("Could not locate element — it may have been changed by a prior fix. Try clicking Fix with AI again, or edit manually in the right pane.", {
+                duration: 5000,
             });
             return;
         }
@@ -502,10 +571,41 @@ export default function DashboardPage() {
         // Uses a replacer function to avoid $ pattern interpretation in the replacement.
         const sentinelId = generateSentinelId();
         const sentinelNode = injectSentinel(currentNodeHtml, sentinelId);
-        setMasterHtml(prev => prev
-            ? stripSentinel(prev).replace(currentNodeHtml, () => sentinelNode)
-            : prev
-        );
+        // v11 — Bug C Fix: position-aware sentinel injection.
+        // String.replace() always targets the FIRST occurrence of currentNodeHtml.
+        // Pages with duplicate identical elements (e.g., two "Fix Me" buttons with the same HTML)
+        // always got the sentinel on occurrence #0 regardless of which node was clicked.
+        // Fix: extract the 0-based node occurrence index from the nodeId suffix (after last '-').
+        // Both axe nodeIds ("violationId-N") and BP nodeIds ("bp-violationId-N") encode this index.
+        // Falls back to occurrence #0 safely if nodeId has no numeric suffix (single-node violations).
+        const _sentinelOccurrence = (() => {
+            const lastDash = nodeId.lastIndexOf('-');
+            if (lastDash === -1) return 0;
+            const parsed = parseInt(nodeId.slice(lastDash + 1), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        })();
+        setMasterHtml(prev => {
+            if (!prev) return prev;
+            const stripped = stripSentinel(prev);
+            let searchFrom = 0;
+            let targetIdx = -1;
+            for (let occ = 0; occ <= _sentinelOccurrence; occ++) {
+                targetIdx = stripped.indexOf(currentNodeHtml, searchFrom);
+                if (targetIdx === -1) break;
+                if (occ < _sentinelOccurrence) searchFrom = targetIdx + 1;
+            }
+            if (targetIdx === -1) {
+                // Nth occurrence not found — gracefully fall back to first occurrence
+                const firstIdx = stripped.indexOf(currentNodeHtml);
+                if (firstIdx === -1) return stripped; // element absent — no-op sentinel
+                return stripped.slice(0, firstIdx) + sentinelNode + stripped.slice(firstIdx + currentNodeHtml.length);
+            }
+            return (
+                stripped.slice(0, targetIdx) +
+                sentinelNode +
+                stripped.slice(targetIdx + currentNodeHtml.length)
+            );
+        });
         // Send the sentinel-tagged node so healResult.original echoes the sentinel back,
         // making indexOf() in handleApplyFix land on exactly the right node.
         const nodeHtmlToHeal = sentinelNode;
@@ -518,9 +618,138 @@ export default function DashboardPage() {
         // og:title (Open Graph — used on WordPress, Shopify, Next.js, most SPAs).
         // undefined for all other violation types — JSON.stringify omits undefined keys,
         // so no extra payload is sent for the common case.
-        let pageContext: { h1?: string; metaDescription?: string; ogTitle?: string } | undefined;
-        if (violation.id === "document-title" && masterHtml) {
-            const h1Match = masterHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        let pageContext: { h1?: string; metaDescription?: string; ogTitle?: string; nearestText?: string } | undefined;
+        // v11: extend pageContext to image violations so offline PATTERN 4 can use
+        // pageContext.h1 as contextAlt when deriveAltFromFilename returns null (opaque CDN URLs).
+        // The h1-derived contextAlt ("{h1} image") is infinitely better than alt="" role="presentation".
+        // pageContext is already safely ignored (JSON.stringify omits undefined keys) for all other
+        // violation types — this change adds zero payload for non-image, non-title violations.
+        if ((violation.id === "document-title" || violation.id === "image-alt" || violation.id === "image-alt-filename") && masterHtml) {
+            // v13 Bug A: Strip HTML comments and attribute values before h1 extraction.
+            // Without stripping, a broken img alt containing newlines and "<h1>" text
+            // causes the regex to match inside an attribute value instead of the real element,
+            // producing garbage like "tags on same page, broken heading hierarchy... image".
+            // Step 1: remove HTML comments (<!-- ... -->) — these appear before real h1s in test files
+            // Step 2: blank out all attribute values (preserve attribute names for structure)
+            //         so strings like alt="...fake h1..." cannot interfere with element matching
+            // Step 3: run h1 regex on the sanitized string, then extract the corresponding
+            //         text from the ORIGINAL masterHtml using the match position (offset preserved)
+            const htmlForExtraction = masterHtml
+                .replace(/<!--[\s\S]*?-->/g, "")                         // strip comments
+                .replace(/=["'][^"']*["']/g, '=""');                     // blank attribute values
+            const h1Match = htmlForExtraction.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+            // Re-extract the actual text from original masterHtml at the same position
+            // (htmlForExtraction has blanked attrs so inner text is preserved as-is for non-attr content)
+            // Inner text of h1 is never inside an attribute, so we can safely use htmlForExtraction's capture
+            // Note: h1Match[1] comes from htmlForExtraction where attr values are blanked —
+            // inner text nodes are unaffected by the blanking, so h1 text is correct.
+            // v15 Bug 2: Hardened nearestText extraction — bidirectional search with quality validation.
+            //
+            // v14 searched only AFTER the image in 800 chars. This failed on:
+            // - test.html: hero image at top, nearest bold <p> was unrelated warning text
+            // - Real sites: product name is often in a heading ABOVE the image in card layouts
+            // - Any site where 800 chars after img contains price/button text before product name
+            //
+            // v15 strategy:
+            // 1. Search 400 chars BEFORE src position (catches heading-above-image card patterns)
+            // 2. Search 600 chars AFTER src position (catches product-name-below-image patterns)
+            // 3. Pick the candidate closest (by char distance) to the image src position
+            // 4. Validate: reject prices, UI chrome, generic single words, all-caps abbreviations
+            // 5. Only set nearestText if confidence is HIGH — otherwise let h1 or Gemini handle it
+            //
+            // nearestText is ONLY used by the offline fallback (applyOfflineFix).
+            // Gemini vision path (VISION_PROMPT) is unaffected — it describes pixels directly.
+            let nearestText: string | undefined;
+            if ((violation.id === "image-alt" || violation.id === "image-alt-filename") && masterHtml) {
+                const srcMatch = nodeHtml.match(/\bsrc=["']([^"']+)["']/i);
+                if (srcMatch?.[1]) {
+                    const srcIdx = masterHtml.indexOf(srcMatch[1]);
+                    if (srcIdx !== -1) {
+                        // ── UI chrome words that indicate non-product text ──────────────────
+                        // Single-word exact match (case-insensitive). Multi-word strings pass.
+                        const UI_CHROME_WORDS = new Set([
+                            'add','buy','shop','cart','checkout','view','more','details','info',
+                            'click','here','link','go','see','read','learn','open','close',
+                            'submit','cancel','back','next','prev','previous','menu','home',
+                            'sale','new','hot','top','best','featured','recommended','popular',
+                            'trending','loading','error','warning','success','done','ok','yes','no',
+                        ]);
+                        // ── Candidate extraction helper ────────────────────────────────────
+                        // Extracts the first meaningful text from a window of HTML.
+                        // Priority: bold <p> > <h2>-<h4> > any <p>
+                        // Returns { text, distance } where distance is chars from srcIdx.
+                        const extractCandidate = (
+                            window: string,
+                            windowStartOffset: number
+                        ): { text: string; distance: number } | null => {
+                            const patterns = [
+                                /<p\b[^>]*font-weight\s*:\s*bold[^>]*>([\s\S]*?)<\/p>/i,
+                                /<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>/i,
+                                /<p\b[^>]*>([\s\S]*?)<\/p>/i,
+                            ];
+                            for (const pat of patterns) {
+                                const m = window.match(pat);
+                                if (!m) continue;
+                                const raw = m[1].replace(/<[^>]+>/g, '').trim().slice(0, 60);
+                                if (raw.length < 3) continue;
+                                const matchIdx = window.indexOf(m[0]);
+                                const distance = Math.abs(windowStartOffset + matchIdx);
+                                return { text: raw, distance };
+                            }
+                            return null;
+                        };
+                        // ── Search before (heading-above-image card pattern) ───────────────
+                        const beforeHtml = masterHtml.slice(Math.max(0, srcIdx - 400), srcIdx);
+                        let beforeCandidate: { text: string; distance: number } | null = null;
+                        {
+                            const pats = [
+                                /<p\b[^>]*font-weight\s*:\s*bold[^>]*>([\s\S]*?)<\/p>/gi,
+                                /<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>/gi,
+                                /<p\b[^>]*>([\s\S]*?)<\/p>/gi,
+                            ];
+                            for (const pat of pats) {
+                                const matches = [...beforeHtml.matchAll(pat)];
+                                if (matches.length === 0) continue;
+                                // Take the LAST match — closest to the image
+                                const last = matches[matches.length - 1];
+                                const raw = last[1].replace(/<[^>]+>/g, '').trim().slice(0, 60);
+                                if (raw.length < 3) continue;
+                                const matchEnd = (last.index ?? 0) + last[0].length;
+                                const distance = beforeHtml.length - matchEnd;
+                                beforeCandidate = { text: raw, distance };
+                                break;
+                            }
+                        }
+                        // ── Search after (product-name-below-image pattern) ───────────────
+                        const afterHtml = masterHtml.slice(srcIdx, srcIdx + 600);
+                        const afterCandidate = extractCandidate(afterHtml, 0);
+                        // ── Pick closest candidate ────────────────────────────────────────
+                        let rawCandidate: string | undefined;
+                        if (beforeCandidate && afterCandidate) {
+                            rawCandidate = beforeCandidate.distance <= afterCandidate.distance
+                                ? beforeCandidate.text
+                                : afterCandidate.text;
+                        } else {
+                            rawCandidate = beforeCandidate?.text ?? afterCandidate?.text;
+                        }
+                        // ── Quality validation ────────────────────────────────────────────
+                        if (rawCandidate) {
+                            const trimmed = rawCandidate.trim();
+                            const isPrice = /^[$£€¥₹]?\d+([.,]\d{1,2})?$/.test(trimmed) ||
+                                /^(USD|EUR|GBP|JPY|INR)\s*\d/i.test(trimmed) ||
+                                /\d+[.,]\d{2}$/.test(trimmed);
+                            const isAllCapsAbbrev = trimmed.length <= 4 && trimmed === trimmed.toUpperCase() && /^[A-Z]+$/.test(trimmed);
+                            const isSingleUIWord = !trimmed.includes(' ') && UI_CHROME_WORDS.has(trimmed.toLowerCase());
+                            const isTooShort = trimmed.replace(/[^a-zA-Z]/g, '').length < 3;
+                            const isPath = /^[./]/.test(trimmed) || /\.(html|php|jpg|png|svg)/i.test(trimmed);
+                            const isCssLeak = /^\s*(color|font|margin|padding|border|display|width|height)\s*:/i.test(trimmed);
+                            if (!isPrice && !isAllCapsAbbrev && !isSingleUIWord && !isTooShort && !isPath && !isCssLeak) {
+                                nearestText = trimmed;
+                            }
+                        }
+                    }
+                }
+            }
             const metaMatch =
                 masterHtml.match(/<meta\s+name=["']description["'][^>]*content=["']([^"']+)["']/i) ??
                 masterHtml.match(/<meta\s+content=["']([^"']+)["'][^>]*name=["']description["']/i);
@@ -536,6 +765,9 @@ export default function DashboardPage() {
                 ogTitle: ogMatch
                     ? ogMatch[1].trim().replace(/\s*[\|—–]\s*.+$|\s+-\s+.+$/, "").trim()
                     : undefined,
+                // v14: product/section-specific text nearest to this image in the DOM.
+                // Preferred over h1 for alt text to avoid identical alts across a product grid.
+                nearestText,
             };
         }
 
@@ -665,6 +897,7 @@ export default function DashboardPage() {
 
         setHealResult(null);
         setHealingViolationId(null);
+        setHealStatus("idle"); // v12 Bug 2: reset heal pipeline state after apply
 
         toast.success("Fix Applied!", {
             icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
@@ -681,6 +914,17 @@ export default function DashboardPage() {
         lastFixViolationRef.current = violation;
         lastFixIsBpRef.current = true;
 
+        // P13: Guard against concurrent heal calls — rapid double-click corrupts sentinel state.
+        if (healStatus === "healing") return;
+        // v13 Bug C: Same pending-fix guard as handleFix — see comment there.
+        if (healStatus === "done" && healResult !== null) {
+            toast("Please apply or regenerate the current pending fix before fixing another element.", {
+                duration: 4000,
+                icon: "⚠️",
+            });
+            return;
+        }
+
         setBpHealingId(nodeId);
         setHealStatus("healing");
         setHealingViolationId(nodeId);
@@ -695,14 +939,18 @@ export default function DashboardPage() {
         // fingerprint matching. "node changed by another fix" ≠ "already fixed for THIS issue".
         const currentNodeHtml = findCurrentNodeHtml(sanitizedNodeHtml, stripSentinel(masterHtml ?? ""));
         if (currentNodeHtml === null) {
-            // Element is truly gone — entirely replaced by a previous fix
-            setBpResolvedIds((prev) => new Set([...prev, nodeId]));
+            // v12 Bug 1+3 fix: same reasoning as handleFix — do not auto-resolve.
+            // findCurrentNodeHtml returns null for both genuine replacements AND
+            // style-mutation fingerprint misses. Auto-resolving on a miss permanently
+            // disables the Fix button without applying any change to masterHtml.
+            // Reset state cleanly and let the user retry.
             setBpHealingId(null);
-            setHealResult(null);           // clear stale diff — don't show wrong node's diff
+            setHealResult(null);
             setHealStatus("idle");
             setHealingViolationId(null);
-            toast.success("Node already fully replaced by a previous repair — skipped.", {
-                icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+            setMasterHtml(prev => prev ? stripSentinel(prev) : prev);
+            toast("Could not locate element — it may have been changed by a prior fix. Try clicking Fix with AI again, or edit manually in the right pane.", {
+                duration: 5000,
             });
             return;
         }
@@ -712,10 +960,41 @@ export default function DashboardPage() {
         // Uses a replacer function to avoid $ pattern interpretation in the replacement.
         const sentinelId = generateSentinelId();
         const sentinelNode = injectSentinel(currentNodeHtml, sentinelId);
-        setMasterHtml(prev => prev
-            ? stripSentinel(prev).replace(currentNodeHtml, () => sentinelNode)
-            : prev
-        );
+        // v11 — Bug C Fix: position-aware sentinel injection.
+        // String.replace() always targets the FIRST occurrence of currentNodeHtml.
+        // Pages with duplicate identical elements (e.g., two "Fix Me" buttons with the same HTML)
+        // always got the sentinel on occurrence #0 regardless of which node was clicked.
+        // Fix: extract the 0-based node occurrence index from the nodeId suffix (after last '-').
+        // Both axe nodeIds ("violationId-N") and BP nodeIds ("bp-violationId-N") encode this index.
+        // Falls back to occurrence #0 safely if nodeId has no numeric suffix (single-node violations).
+        const _sentinelOccurrence = (() => {
+            const lastDash = nodeId.lastIndexOf('-');
+            if (lastDash === -1) return 0;
+            const parsed = parseInt(nodeId.slice(lastDash + 1), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        })();
+        setMasterHtml(prev => {
+            if (!prev) return prev;
+            const stripped = stripSentinel(prev);
+            let searchFrom = 0;
+            let targetIdx = -1;
+            for (let occ = 0; occ <= _sentinelOccurrence; occ++) {
+                targetIdx = stripped.indexOf(currentNodeHtml, searchFrom);
+                if (targetIdx === -1) break;
+                if (occ < _sentinelOccurrence) searchFrom = targetIdx + 1;
+            }
+            if (targetIdx === -1) {
+                // Nth occurrence not found — gracefully fall back to first occurrence
+                const firstIdx = stripped.indexOf(currentNodeHtml);
+                if (firstIdx === -1) return stripped; // element absent — no-op sentinel
+                return stripped.slice(0, firstIdx) + sentinelNode + stripped.slice(firstIdx + currentNodeHtml.length);
+            }
+            return (
+                stripped.slice(0, targetIdx) +
+                sentinelNode +
+                stripped.slice(targetIdx + currentNodeHtml.length)
+            );
+        });
         // Send the sentinel-tagged node so healResult.original echoes the sentinel back,
         // making indexOf() in handleApplyFix land on exactly the right node.
         const nodeHtmlToHeal = sentinelNode;
@@ -772,6 +1051,17 @@ export default function DashboardPage() {
         }
     }, [masterHtml]);
 
+    // ── DISMISS: clear pending fix without applying it, re-enabling all Fix buttons ──
+    // v13: Allows users to discard a generated fix and try another node.
+    // Strips the pending sentinel from masterHtml so state is clean.
+    const handleDismissFix = useCallback(() => {
+        setHealResult(null);
+        setHealStatus("idle");
+        setHealingViolationId(null);
+        setBpHealingId(null);
+        setMasterHtml(prev => prev ? stripSentinel(prev) : prev);
+        toast("Fix dismissed. You can now fix another element.", { duration: 2500 });
+    }, []);
     // ── REFIX: re-trigger the last heal API call with the current node version ──
     const handleRefix = useCallback(() => {
         if (!lastFixViolationRef.current || !healingViolationId) return;
@@ -1424,6 +1714,7 @@ export default function DashboardPage() {
                                         theme={editorTheme}
                                         onApplyFix={handleApplyFix}
                                         onRefix={handleRefix}
+                                        onDismissFix={handleDismissFix}
                                         onRescan={masterHtml && scannedUrl ? handleRescan : undefined}
                                         onToggleTheme={() => updateEditorTheme(editorTheme === "vs-dark" ? "vs" : "vs-dark")}
                                     />

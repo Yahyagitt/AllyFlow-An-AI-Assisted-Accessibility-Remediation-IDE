@@ -9,6 +9,7 @@ export interface HealRequest {
         h1?: string;
         metaDescription?: string;
         ogTitle?: string;
+        nearestText?: string; // v14: nearest product/section text for image alt context
     };
 }
 
@@ -156,9 +157,11 @@ KEYBOARD & FOCUS
 General: If the violation ID is not listed above, apply the most semantically appropriate fix based on the description provided. Preserve all JavaScript, event handlers, classes, inline styles, and data attributes not related to the violation. Return ONLY the corrected HTML element.`;
 
 // ─── IMAGE-ALT VISION PROMPT (used when actual image data is available) ─────
+// v11: Updated to handle both missing alt (image-alt) and existing bad alt (image-alt-filename).
+// "added or corrected" instructs Gemini to replace a bad existing alt, not append a second one.
 const VISION_PROMPT = `You are a web accessibility expert. Look at the image provided.
 Write a concise, accurate alt attribute (under 125 characters) describing what the image actually shows.
-Return ONLY the complete fixed <img> HTML tag with the alt attribute added. No markdown, no backticks, no explanation.
+Return ONLY the complete fixed <img> HTML tag with the alt attribute added or corrected (replace any existing incorrect alt value entirely). No markdown, no backticks, no explanation.
 
 HTML TO FIX:
 `;
@@ -212,10 +215,19 @@ function isMeaninglessFilename(filename: string): boolean {
  * Returns true if an alt value is just echoing the src URL or file path.
  * Catches: domain names, file paths, extensions, UUIDs used as alt text.
  */
+// P15: SYNC-WARNING — this function is duplicated in app/api/best-practices/heal/route.ts.
+// Any change here MUST be mirrored there. Shared lib refactor is tracked as tech debt.
 function isBadAlt(alt: string, src: string): boolean {
-    // Single combined guard — order matters: null/undefined check MUST precede .trim() call.
-    // .trim() on null throws TypeError; this order prevents that entirely.
-    if (!alt || !alt.trim() || alt.trim().length <= 1) return false;
+    // v11: Split the null-guard from the empty-string guard.
+    // Previously: !alt returned false for BOTH null/undefined AND "" — the empty-string
+    // case is wrong. An empty alt on a non-decorative image that reached this gate IS bad.
+    // (This gate only fires inside PATTERN 4, which only runs on non-decorative images.)
+    // For opaque CDN images: isBadAlt("", src) now returns true, deriveAltFromFilename(src)
+    // returns null (opaque), so the gate writes alt="" again — no regression, but the gate
+    // is now logically correct and ready for future cases where derive succeeds.
+    if (alt == null) return false;            // null/undefined — no string to evaluate
+    if (alt.trim() === '') return true;       // empty alt on non-decorative image IS bad
+    if (alt.trim().length <= 1) return false; // single char — too short to evaluate meaningfully
     const a = alt.trim().toLowerCase();
     const s = src.trim().toLowerCase();
     // Direct match against src
@@ -227,8 +239,20 @@ function isBadAlt(alt: string, src: string): boolean {
     if (/^\.?\//.test(a)) return true;
     // Ends with an image extension
     if (/\.(svg|png|jpg|jpeg|gif|webp|bmp|tiff|ico)$/.test(a)) return true;
+
+
     // Looks like a UUID or photo hash (8+ hex chars, dashes, no spaces)
     if (/^[a-f0-9]{8}[a-f0-9-]*$/i.test(a)) return true;
+    // P10b: Extended opaque-ID detection — catches pure hex UUIDs AND prefixed photo/image
+    // IDs used by Unsplash (photo-NNN-hexhash), Pexels, Cloudinary, AWS S3, and similar CDNs.
+    // Original hex-only regex missed "photo-1491553895911-0055eca6402d" because of the prefix.
+    if (/^(?:photo|image|img|pic|pexels|pixabay|unsplash|asset|file|upload|media|resource)[-_]\w{4,}/i.test(a)) return true;
+    if (/\d{8,}/.test(a) && a.replace(/[\d\-_]/g, '').length < 4) return true; // mostly-numeric with dashes
+    // Exactly a generic single word (or generic word + trailing number/extension — still meaningless).
+    // Uses exact-match only: "Logo of the company" is NOT flagged; "logo" and "logo 1" ARE flagged.
+    const GENERIC_WORDS = new Set(['image', 'photo', 'picture', 'img', 'graphic', 'icon', 'logo', 'thumbnail', 'banner', 'placeholder']);
+    const withoutTrailingNoise = a.replace(/[\s\-_]?\d+$/, '').replace(/\.(jpg|png|gif|svg|webp|bmp|tiff|ico)$/, '').trim();
+    if (GENERIC_WORDS.has(withoutTrailingNoise)) return true;
     return false;
 }
 
@@ -237,6 +261,8 @@ function isBadAlt(alt: string, src: string): boolean {
  * Returns null when the filename is opaque (UUID, photo-NNN, random hash).
  * Appends " icon" when the src path contains "icon".
  */
+// P15: SYNC-WARNING — this function is duplicated in app/api/best-practices/heal/route.ts.
+// Any change here MUST be mirrored there. Shared lib refactor is tracked as tech debt.
 function deriveAltFromFilename(src: string): string | null {
     // Extract filename without extension from URL or path
     const match = src.match(/\/([^/?#]+?)\.[a-z]{2,5}(?:[?#].*)?$/i);
@@ -295,7 +321,7 @@ function pickContrastTextColor(bgValue: string): string {
 }
 
 // ─── OFFLINE HEURISTIC FALLBACK ─────────────────────────────────────────────
-function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?: { h1?: string; metaDescription?: string; ogTitle?: string }): string {
+function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?: { h1?: string; metaDescription?: string; ogTitle?: string; nearestText?: string }): string {
     let fixed = nodeHtml.trim();
     const vid = violation.id;
 
@@ -307,7 +333,7 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
     );
     if (isAnchorFakeButton) {
         const inner = getInnerHtml(fixed, "a");
-        const events = [...fixed.matchAll(/data-af-on\w+=["'][^"']*["']/gi)].map((m) => m[0]).join(" ");
+        const events = [...fixed.matchAll(/data-af-on\w+=(?:"[^"]*"|'[^']*')/gi)].map((m) => m[0]).join(" ");
         const classMatch = fixed.match(/\bclass=["']([^"']*)["']/i);
         const classAttr = classMatch ? ` class="${classMatch[1]}"` : "";
         const idMatch = fixed.match(/\bid=["']([^"']*)["']/i);
@@ -315,19 +341,85 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
         const styleAttr = /background-color/i.test(fixed) ? "" : ' style="background-color:#1a56db;color:#ffffff;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;font-weight:bold;"';
         fixed = `<button${idAttr}${styleAttr}${classAttr}${events ? " " + events : ""}>${inner}</button>`;
     }
-
     // <div role="button"> → <button>
     if (/^<div\b/i.test(fixed) && /\brole=["']button["']/i.test(fixed)) {
         fixed = fixed.replace(/^<div\b/i, "<button").replace(/<\/div>$/i, "</button>").replace(/\s*role=["']button["']/gi, "");
         fixed = fixed.replace(/aria-pressed=["']yes["']/gi, 'aria-pressed="true"').replace(/aria-pressed=["']no["']/gi, 'aria-pressed="false"');
+        // v23: After tag conversion, apply toggle-detection + strip for aria-pressed.
+        // This path was the missing link: class-signal fake-btn block has this logic but
+        // skips when fixed is already <button> (which it is after the conversion above).
+        // The role="button" div path normalizes "yes"→"true" but never stripped for
+        // non-toggle buttons (Add to Cart, Submit, Checkout etc.) — leaving a permanent
+        // static aria-pressed="true" that screen readers announce as "pressed" forever.
+        // Toggle detection: aria-expanded, aria-controls, or toggle/switch/expand/mute in class.
+        if (/\baria-pressed=/i.test(fixed)) {
+            const isToggleDivPath = /aria-expanded/.test(fixed) || /aria-controls/.test(fixed) ||
+                /\b(toggle|switch|expand|collapse|mute)\b/i.test(
+                    (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? ""
+                );
+            if (isToggleDivPath) {
+                fixed = fixed.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"');
+            } else {
+                fixed = fixed.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+            }
+        }
     }
-
+    // v17: Class-signal fake-btn conversion — handles <div class="fake-btn"> and similar
+    // class-only fake buttons that have no role="button" but have a button-class AND onclick.
+    // These are missed by the role="button" branch above and by Gemini when quota is exhausted.
+    // Covers: fake-btn, btn, button, cta, action-btn, action-cta (word-boundary safe).
+    // Guard: element must also have data-af-onclick (sanitized onclick) to confirm interactivity.
+    // Does NOT fire on structural containers (card, wrapper) — they pass the onclick guard.
+    // Does NOT fire on elements already converted to <button> by the role="button" branch above.
+    if (
+        /^<(div|span|li|p)\b/i.test(fixed) &&
+        !/^<button\b/i.test(fixed) &&
+        /\b(fake-btn|fake-button|action-btn|action-cta|btn|cta)\b/i.test(
+            (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? ""
+        ) &&
+        /\bdata-af-onclick=/i.test(fixed)
+    ) {
+        const tagMatch = fixed.match(/^<(\w+)\b/i);
+        const oldTag = tagMatch?.[1] ?? "div";
+        const inner = (() => {
+            const m = fixed.match(new RegExp(`<${oldTag}\\b[^>]*>([\\s\\S]*?)<\\/${oldTag}>`, "i"));
+            return m ? m[1] : "";
+        })();
+        const events = [...fixed.matchAll(/data-af-on\w+=(?:"[^"]*"|'[^']*')/gi)].map((m) => m[0]).join(" ");
+        const classMatch = fixed.match(/\bclass=["']([^"']*)["']/i);
+        const classAttr = classMatch ? ` class="${classMatch[1]}"` : "";
+        const idMatch = fixed.match(/\bid=["']([^"']*)["']/i);
+        const idAttr = idMatch ? ` id="${idMatch[1]}"` : "";
+        const styleMatch = fixed.match(/\bstyle=["']([^"']*)["']/i);
+        const styleAttr = styleMatch ? ` style="${styleMatch[1]}"` : "";
+        fixed = `<button${idAttr}${classAttr}${styleAttr}${events ? " " + events : ""}>${inner}</button>`;
+        // v18: Post-conversion cleanup for class-signal fake-btn → <button>.
+        // Strip role="button" (redundant on native <button> — axe flags aria-allowed-attr).
+        fixed = fixed.replace(/\s*\brole=["']button["']/gi, "");
+        // Strip tabindex="0" (native <button> is focusable by default — redundant noise).
+        fixed = fixed.replace(/\s*\btabindex=["']0["']/gi, "");
+        // Normalize aria-pressed: only valid on toggle buttons.
+        // Toggle signal: aria-expanded, aria-controls, or class/id with toggle|switch|expand|collapse|mute.
+        // Non-toggle: strip aria-pressed entirely (Add to Cart, Submit, Create Account etc.).
+        // Toggle: normalize to "false" (unpressed default — never leave "true" as static value).
+        if (/\baria-pressed=/i.test(fixed)) {
+            const isToggle = /aria-expanded/.test(fixed) || /aria-controls/.test(fixed) ||
+                /\b(toggle|switch|expand|collapse|mute)\b/i.test(
+                    (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? ""
+                );
+            if (isToggle) {
+                fixed = fixed.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"');
+            } else {
+                fixed = fixed.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+            }
+        }
+    }
     // <span>/<li>/<p> role="button" → <button>
     // P3: Preserve aria-expanded (accordion state) and aria-label through the conversion
     if (/^<(span|li|p)\b/i.test(fixed) && /\brole=["']button["']/i.test(fixed)) {
         const tag = fixed.match(/^<(\w+)\b/i)?.[1] ?? "div";
         const inner = getInnerHtml(fixed, tag);
-        const events = [...fixed.matchAll(/data-af-on\w+=["'][^"']*["']/gi)].map((m) => m[0]).join(" ");
+        const events = [...fixed.matchAll(/data-af-on\w+=(?:"[^"]*"|'[^']*')/gi)].map((m) => m[0]).join(" ");
         const classMatch = fixed.match(/\bclass=["']([^"']*)["']/i);
         const classAttr = classMatch ? ` class="${classMatch[1]}"` : "";
         const idMatch = fixed.match(/\bid=["']([^"']*)["']/i);
@@ -335,7 +427,23 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
         const ariaExpanded = fixed.match(/\baria-expanded=["'][^"']*["']/i)?.[0] ?? "";
         const ariaLabel = fixed.match(/\baria-label=["'][^"']*["']/i)?.[0] ?? "";
         fixed = `<button${idAttr}${classAttr}${ariaExpanded ? " " + ariaExpanded : ""}${ariaLabel ? " " + ariaLabel : ""}${events ? " " + events : ""}>${inner}</button>`;
+        // v23: Toggle-detection + strip for aria-pressed on span/li/p conversion path.
+        // Mirrors Change 1 (div role="button" path) — same gap, same fix.
+        // Prevents static aria-pressed="true" surviving on converted <button> elements
+        // from span/li/p fake-button patterns used by some frameworks (e.g. Bootstrap list-groups).
+        if (/\baria-pressed=/i.test(fixed)) {
+            const isToggleSlpPath = /aria-expanded/.test(fixed) || /aria-controls/.test(fixed) ||
+                /\b(toggle|switch|expand|collapse|mute)\b/i.test(
+                    (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? ""
+                );
+            if (isToggleSlpPath) {
+                fixed = fixed.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"');
+            } else {
+                fixed = fixed.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+            }
+        }
     }
+
 
 
     // Color contrast — handled in the switch below (3-path hardened version)
@@ -353,7 +461,15 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
             } else {
                 const parts = url.split("/").filter(Boolean);
                 const parentFolder = parts[parts.length - 2] ?? "";
-                if (parentFolder && !/^https?:$/.test(parentFolder)) altText = parentFolder.replace(/[-_]/g, " ").trim();
+                // v16: Guard against domain names leaking as alt text.
+                // Reject: protocol tokens ("https:"), domain-like strings (contain "."),
+                // and strings too long to be a meaningful folder name (>30 chars).
+                // e.g. "images.unsplash.com" contains "." → rejected.
+                // e.g. "products" contains no "." and is short → accepted.
+                const isDomainLike = parentFolder.includes(".") || parentFolder.length > 30;
+                if (parentFolder && !/^https?:$/.test(parentFolder) && !isDomainLike) {
+                    altText = parentFolder.replace(/[-_]/g, " ").trim();
+                }
             }
         }
         fixed = fixed.replace(/<img\s/i, `<img alt="${altText}" `);
@@ -372,13 +488,33 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
                 // Replace bad alt with filename-derived label
                 fixed = fixed.replace(/(\balt=["'])[^"']*["']/, `$1${derived}"`);
             } else {
-                // Opaque URL (data URI, blob, CDN with no meaningful path) — empty alt is correct
-                fixed = fixed.replace(/(\balt=["'])[^"']*["']/, `$1"`);
-                // Only add role="presentation" if no existing role — never override role="img"
-                if (!/\brole=/.test(fixed)) {
-                    fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, '$1 role="presentation"');
+                // Opaque CDN URL — use surrounding page context before declaring decorative.
+                // v14: prefer nearestText (product name nearest to this image) over page h1.
+                // h1 is section-level ("Featured Products") — same for all images in a grid.
+                // nearestText is element-specific ("Running Shoes", "Smartphone") — unique per image.
+                //
+                // v16: for image-alt (MISSING alt), only use nearestText — not h1.
+                // h1 is the site/page name (e.g. "TechGadgets Store"), not the image subject.
+                // Using h1 as alt for a missing-alt image produces misleading screen reader output.
+                // Honest empty alt is better than wrong alt when nearestText is unavailable.
+                // For image-alt-filename (BAD existing alt), h1 is still a valid fallback because
+                // any meaningful context is better than a file path or UUID left in place.
+                const isImageAltViolation = vid === "image-alt";
+                const contextSource = isImageAltViolation
+                    ? (pageContext?.nearestText ?? null)                       // image-alt: nearestText only
+                    : (pageContext?.nearestText ?? pageContext?.h1 ?? null);   // image-alt-filename: nearestText OR h1
+                const contextAlt = contextSource
+                    ? `${contextSource.trim().slice(0, 80)} image`
+                    : null;
+                if (contextAlt) {
+                    fixed = fixed.replace(/(\balt=["'])[^"']*["']/, `$1${contextAlt}"`);
+                } else {
+                    // No context available — empty alt is the honest fallback
+                    fixed = fixed.replace(/(\balt=["'])[^"']*["']/, `$1"`);
+                    if (!/\brole=/.test(fixed)) {
+                        fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, '$1 role="presentation"');
+                    }
                 }
-                // role="img" with alt="" is valid — screen reader already skips it.
             }
         }
     }
@@ -469,79 +605,85 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
     // ── Extended offline cases ───────────────────────────────────────────────
     switch (vid) {
         case "color-contrast": {
-          // Detect element tag — table cells need text-only fix (no background override)
-          const tagMatch = fixed.match(/^<([a-z][a-z0-9]*)\b/i);
-          const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
-          const isTableCell = /^t[hd]$/.test(tag);
+            // Detect element tag — table cells need text-only fix (no background override)
+            const tagMatch = fixed.match(/^<([a-z][a-z0-9]*)\b/i);
+            const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
+            const isTableCell = /^t[hd]$/.test(tag);
 
-          const hasStyle       = /\bstyle=["'][^"']*["']/i.test(fixed);
-          const hasColor       = /(?<![a-z-])color\s*:/i.test(fixed);
-          const hasBgColor     = /\bbackground-color\s*:/i.test(fixed);
-          // background: shorthand — negative lookbehind excludes "background-color:"
-          const hasBgShorthand = /(?<!background-)background\s*:/i.test(fixed);
-          const hasBg          = hasBgColor || hasBgShorthand;
+            const hasStyle = /\bstyle=["'][^"']*["']/i.test(fixed);
+            const hasColor = /(?<![a-z-])color\s*:/i.test(fixed);
+            const hasBgColor = /\bbackground-color\s*:/i.test(fixed);
+            // background: shorthand — negative lookbehind excludes "background-color:"
+            const hasBgShorthand = /(?<!background-)background\s*:/i.test(fixed);
+            const hasBg = hasBgColor || hasBgShorthand;
 
-          if (hasStyle && (hasColor || hasBg)) {
-            // PATH A — inline style exists and has color and/or background values
-            // Extract any inline background color first so we pick the right text color.
-            const pathABgMatch = fixed.match(/background(?:-color)?\s*:\s*([^;'"]+)/i);
-            const pathATextColor = pathABgMatch
-                ? pickContrastTextColor(pathABgMatch[1].trim())
-                : '#1a1a1a';
-            if (hasColor) {
-              fixed = fixed.replace(
-                /(\bstyle=["'][^"']*(?<![a-z-])color\s*:\s*)[^;'"]+/i,
-                `$1${pathATextColor}`
-              );
-            }
-            // Replace background-color ONLY on safe container elements, never table cells
-            const isSafeToReplaceBg = hasBgColor && !isTableCell &&
-              /^(?:div|section|article|aside|header|footer|main|span|p)$/.test(tag);
-            if (isSafeToReplaceBg) {
-              fixed = fixed.replace(
-                /(\bstyle=["'][^"']*\bbackground-color\s*:\s*)[^;'"]+/i,
-                "$1#ffffff"
-              );
-            }
-            // background: shorthand is too complex to safely rewrite — only add color if missing
-            if (!hasColor) {
-              fixed = fixed.replace(
-                /\bstyle=(["'])([^"']*)\1/i,
-                (_: string, q: string, existing: string) => {
-                  const base = existing.replace(/;\s*$/, "");
-                  return `style=${q}${base}${base ? ";" : ""}color:${pathATextColor};${q}`;
+            if (hasStyle && (hasColor || hasBg)) {
+                // PATH A — inline style exists and has color and/or background values
+                // Extract any inline background color first so we pick the right text color.
+                const pathABgMatch = fixed.match(/background(?:-color)?\s*:\s*([^;'"]+)/i);
+                const pathATextColor = pathABgMatch
+                    ? pickContrastTextColor(pathABgMatch[1].trim())
+                    : '#1a1a1a';
+                if (hasColor) {
+                    fixed = fixed.replace(
+                        /(\bstyle=["'][^"']*(?<![a-z-])color\s*:\s*)[^;'"]+/i,
+                        `$1${pathATextColor}`
+                    );
                 }
-              );
+                // Replace background-color ONLY on safe container elements, never table cells
+                const isSafeToReplaceBg = hasBgColor && !isTableCell &&
+                    /^(?:div|section|article|aside|header|footer|main|span|p)$/.test(tag);
+                if (isSafeToReplaceBg) {
+                    fixed = fixed.replace(
+                        /(\bstyle=["'][^"']*\bbackground-color\s*:\s*)[^;'"]+/i,
+                        "$1#ffffff"
+                    );
+                }
+                // background: shorthand is too complex to safely rewrite — only add color if missing
+                if (!hasColor) {
+                    fixed = fixed.replace(
+                        /\bstyle=(["'])([^"']*)\1/i,
+                        (_: string, q: string, existing: string) => {
+                            const base = existing.replace(/;\s*$/, "");
+                            return `style=${q}${base}${base ? ";" : ""}color:${pathATextColor};${q}`;
+                        }
+                    );
+                }
+            } else if (hasStyle) {
+                // PATH B — element has background but no color: inject contrast-safe text color
+                const pathBBgMatch = fixed.match(/background(?:-color)?\s*:\s*([^;'"]+)/i);
+                const pathBTextColor = pathBBgMatch
+                    ? pickContrastTextColor(pathBBgMatch[1].trim())
+                    : '#1a1a1a';
+                fixed = fixed.replace(
+                    /\bstyle=(["'])([^"']*)\1/i,
+                    (_: string, q: string, existing: string) => {
+                        const base = existing.replace(/;\s*$/, "");
+                        // Table cells: only inject text color — respect CSS-defined background
+                        const append = isTableCell
+                            ? "color:#000000;"
+                            : `color:${pathBTextColor};background-color:#ffffff;`;
+                        return `style=${q}${base}${base ? ";" : ""}${append}${q}`;
+                    }
+                );
+            } else {
+                // PATH C — no inline style at all: inject new style= attribute.
+                // v18: Added !important to color values so the inline override wins the CSS
+                // cascade unconditionally, regardless of class specificity or rule order.
+                // This makes class-only color-contrast fixes bulletproof on re-scan:
+                // e.g. .low-contrast { color: #aaa } → element gets style="color:#1a1a1a !important"
+                // which always overrides the class rule at any specificity level.
+                // background-color does NOT get !important — less risky, avoids layout side-effects.
+                const cls = (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? "";
+                const isPrimary = /\b(?:primary|cta|btn-primary|btn-dark|danger|success)\b/i.test(cls);
+                const colors = isPrimary
+                    ? "color:#ffffff !important;background-color:#1a56db;"   // white on blue  4.57:1 ✓
+                    : isTableCell
+                        ? "color:#000000 !important;"                           // cell: text only, 21:1 ✓
+                        : "color:#1a1a1a !important;background-color:#ffffff;"; // other: full 16.1:1 ✓
+                fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, `$1 style="${colors}"`);
             }
-          } else if (hasStyle) {
-            // PATH B — element has background but no color: inject contrast-safe text color
-            const pathBBgMatch = fixed.match(/background(?:-color)?\s*:\s*([^;'"]+)/i);
-            const pathBTextColor = pathBBgMatch
-                ? pickContrastTextColor(pathBBgMatch[1].trim())
-                : '#1a1a1a';
-            fixed = fixed.replace(
-              /\bstyle=(["'])([^"']*)\1/i,
-              (_: string, q: string, existing: string) => {
-                const base = existing.replace(/;\s*$/, "");
-                // Table cells: only inject text color — respect CSS-defined background
-                const append = isTableCell
-                  ? "color:#000000;"
-                  : `color:${pathBTextColor};background-color:#ffffff;`;
-                return `style=${q}${base}${base ? ";" : ""}${append}${q}`;
-              }
-            );
-          } else {
-            // PATH C — no inline style at all: inject new style= attribute
-            const cls = (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? "";
-            const isPrimary = /\b(?:primary|cta|btn-primary|btn-dark|danger|success)\b/i.test(cls);
-            const colors = isPrimary
-              ? "color:#ffffff;background-color:#1a56db;"   // white on blue  4.57:1 ✓
-              : isTableCell
-                ? "color:#000000;"                           // cell: text only, 21:1 on white ✓
-                : "color:#1a1a1a;background-color:#ffffff;"; // other: full 16.1:1 ✓
-            fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, `$1 style="${colors}"`);
-          }
-          break;
+            break;
         }
         case "image-alt-filename": {
             // Extract filename from src= attribute
@@ -586,17 +728,36 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
                 }
             }
 
-            // PATTERN 4 — Default: title-case stem, strip versioning/noise suffixes.
-            // Also strips dimension/size suffixes common on e-commerce and CMS platforms
-            // (Shopify, WooCommerce, Contentful, Cloudinary all append these automatically).
-            const cleaned = stem
-                .replace(/\s+(v\d+|final|new|old|temp|copy|updated|revised|draft|\d{4}|\d{6,})$/i, "")
-                .replace(/\s+(\d+x\d*|\d*x\d+|\d+w|\d+h|2x|3x|thumbnail|thumb|hero|banner|mobile|desktop|tablet|sm|md|lg|xl|xxl)$/i, "")
-                .replace(/\s+/g, " ")
-                .trim();
-            const titleCased = cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
-            if (titleCased) {
-                fixed = fixed.replace(/\balt=["'][^"']*["']/i, `alt="${titleCased}"`);
+            // PATTERN 4 — Default: try deriveAltFromFilename first (UUID guard), then title-case.
+            // P10: deriveAltFromFilename is called HERE before title-casing to catch opaque CDN URLs
+            // (Unsplash photo-NNN, UUIDs, long hashes) that would otherwise produce garbage alt text.
+            // Only title-case stems that deriveAltFromFilename confirms are human-readable.
+            {
+                const srcForDerive = (fixed.match(/\bsrc=["']([^"']+)["']/i) ?? [])[1] ?? "";
+                const derived = deriveAltFromFilename(srcForDerive);
+                if (derived) {
+                    // deriveAltFromFilename confirmed this is a readable filename — use its output
+                    fixed = fixed.replace(/\balt=["'][^"']*["']/i, `alt="${derived}"`);
+                } else {
+                    // Opaque CDN URL (UUID, photo-NNN, random hash, too long) — title-casing would
+                    // produce garbage. Use surrounding page context instead.
+                    // v14: prefer nearestText (product name nearest to this image) over page h1.
+                    // h1 is section-level ("Featured Products") — same for all images in a grid.
+                    // nearestText is element-specific ("Running Shoes", "Smartphone") — unique per image.
+                    const contextSource = pageContext?.nearestText ?? pageContext?.h1 ?? null;
+                    const contextAlt = contextSource
+                        ? `${contextSource.trim().slice(0, 80)} image`
+                        : null;
+                    if (contextAlt) {
+                        fixed = fixed.replace(/\balt=["'][^"']*["']/i, `alt="${contextAlt}"`);
+                    } else {
+                        // No context — honest empty alt + role="presentation"
+                        fixed = fixed.replace(/\balt=["'][^"']*["']/i, `alt=""`);
+                        if (!/\brole=/i.test(fixed)) {
+                            fixed = fixed.replace(/^(<img\b)/i, '$1 role="presentation"');
+                        }
+                    }
+                }
             }
             // ── Final isBadAlt gate: universal safety net after all four patterns ──────
             // Catches edge cases where the stem itself was domain-like or path-like
@@ -616,6 +777,20 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
             }
             break;
         }
+
+        case "new-tab-warning":
+            // Match the full <a>...</a> so we can extract inner text for a meaningful label.
+            // Falls back to "Link (opens in new tab)" only when inner content is purely icons/empty.
+            fixed = fixed.replace(/^(<a\b[^>]*)>([\s\S]*?)<\/a>/i, (_: string, open: string, inner: string) => {
+                const linkText = inner.replace(/<[^>]+>/g, '').trim();
+                if (/aria-label=/i.test(open))
+                    return open.replace(/aria-label=["']([^"']*)["']/i,
+                        (_2: string, v: string) => `aria-label="${v} (opens in new tab)"`) + `>${inner}</a>`;
+                const label = linkText ? `${linkText} (opens in new tab)` : "Link (opens in new tab)";
+                return `${open} aria-label="${label}">${inner}</a>`;
+            });
+            break;
+
         case "aria-allowed-attr": {
             // aria-pressed on non-toggle is the most common aria-allowed-attr violation.
             // Determine if this element is a toggle button by checking its attributes/class.
@@ -671,6 +846,15 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
         case "keyboard-unreachable":
             fixed = fixed.replace(/\s*tabindex=["']-1["']/gi, "");
             break;
+        case "keyboard-trap":
+            // Strip the keydown handler that suppresses default keyboard behaviour (WCAG 2.1.2).
+            // data-af-onkeydown is the sanitized form of onkeydown produced by sanitizeHtml().
+            // Removing it lifts the trap; tabindex="0" ensures the element stays reachable.
+            fixed = fixed.replace(/\s*data-af-onkeydown=["'][^"']*preventDefault[^"']*["']/gi, "");
+            if (!/\btabindex=/i.test(fixed)) {
+                fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, '$1 tabindex="0"');
+            }
+            break;
         case "nested-interactive":
             fixed = fixed.replace(/^<a\b[^>]*>([\s\S]*)<\/a>$/i, "$1").trim();
             break;
@@ -694,8 +878,51 @@ function applyOfflineFix(violation: AxeViolation, nodeHtml: string, pageContext?
             if (!/tabindex=/i.test(fixed))
                 fixed = fixed.replace(/^(<(?:div|section|article|main)\b[^>]*)>/i, '$1 tabindex="0" role="region" aria-label="Scrollable content">');
             break;
+        case "color-contrast-inline": {
+            // v20.1: Fix for SYNTHETIC 6 — inline style="color:#hex" with brightness > 180.
+            // Uses same PATH A logic as the color-contrast case but scoped to hex source strings.
+            // No background detection needed — SYNTHETIC 6 only fires when no inline bg is present.
+            // pickContrastTextColor defaults to #1a1a1a when no bg given (safe on white).
+            fixed = fixed.replace(
+                /(\bstyle=["'][^"']*(?<![a-z-])color\s*:\s*)#[0-9a-fA-F]{3,6}/i,
+                `$1#1a1a1a`
+            );
+            break;
+        }
+        case "redundant-button-role": {
+            // v19+v20.1: Strip role="button" AND tabindex="0" from native <button>.
+            // role="button" is redundant — native <button> has implicit button role.
+            // tabindex="0" is redundant — native <button> is focusable by default.
+            // v22: Input may be a full element (opening + content + closing tag) since
+            // SYNTHETIC 5 now captures the full element for fingerprint resilience.
+            // Scope both strips to the opening tag only — extract it, fix it, splice back.
+            // This prevents stripping tabindex="0" from nested child elements inside the button.
+            const rbOpenTagMatch = fixed.match(/^(<button\b[^>]*>)([\s\S]*)(<\/button>)$/i);
+            if (rbOpenTagMatch) {
+                const fixedOpen = rbOpenTagMatch[1]
+                    .replace(/\s*\brole=["']button["']/gi, "")
+                    .replace(/\s*\btabindex=["']0["']/gi, "");
+                fixed = `${fixedOpen}${rbOpenTagMatch[2]}${rbOpenTagMatch[3]}`;
+            } else {
+                // Fallback: opening tag only (pre-v22 format or malformed) — apply directly
+                fixed = fixed.replace(/\s*\brole=["']button["']/gi, "");
+                fixed = fixed.replace(/\s*\btabindex=["']0["']/gi, "");
+            }
+            break;
+        }
+        case "aria-pressed-static":
+            if (/\baria-pressed=/i.test(fixed)) {
+                const isToggle = /aria-expanded/.test(fixed) || /aria-controls/.test(fixed) ||
+                    /\b(toggle|switch|expand|collapse|mute)\b/i.test(fixed);
+                if (isToggle) {
+                    fixed = fixed.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"');
+                } else {
+                    fixed = fixed.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+                }
+            }
+            break;
         case "heading-order": {
-            const levelMap: Record<string, string> = { h3:"h2", h4:"h3", h5:"h4", h6:"h5" };
+            const levelMap: Record<string, string> = { h3: "h2", h4: "h3", h5: "h4", h6: "h5" };
             fixed = fixed.replace(/^<(h[3-6])(\b[^>]*)>([\s\S]*?)<\/h[3-6]>$/i,
                 (_, tag, attrs, content) => { const f = levelMap[tag.toLowerCase()] ?? tag; return `<${f}${attrs}>${content}</${f}>`; });
             break;
@@ -835,7 +1062,7 @@ async function callGeminiWithFallback(apiKey: string, contentParts: unknown[], t
 }
 
 // ─── MAIN HEALING FUNCTION ──────────────────────────────────────────────────
-async function applyGeminiFix(violation: AxeViolation, nodeHtml: string, pageContext?: { h1?: string; metaDescription?: string; ogTitle?: string }): Promise<HealResponse> {
+async function applyGeminiFix(violation: AxeViolation, nodeHtml: string, pageContext?: { h1?: string; metaDescription?: string; ogTitle?: string; nearestText?: string }): Promise<HealResponse> {
     const normalizedOriginal = normalizeToDom(nodeHtml);
     const trimmedLower = normalizedOriginal.trim().toLowerCase();
 
@@ -843,50 +1070,117 @@ async function applyGeminiFix(violation: AxeViolation, nodeHtml: string, pageCon
         if (violation.id === "landmark-one-main") {
             return { original: normalizedOriginal, fixed: normalizedOriginal, strategy: "heuristic-fallback", description: "Wrap your page's main content in <main>…</main> manually. Place it after your <header> and before your <footer>." };
         }
-        if (violation.id !== "document-title") {
+        if (violation.id !== "document-title" && violation.id !== "html-has-lang" && violation.id !== "html-lang-valid") {
             return { original: normalizedOriginal, fixed: normalizedOriginal, strategy: "heuristic-fallback", description: "Structural tags must be fixed manually in the right pane." };
         }
     }
 
+    // Deterministic bypass: these rules are handled perfectly by the offline heuristic.
+    // Sending them to Gemini causes structural corruption (double <head> injection for
+    // document-title, no-op returns for html-has-lang after the guard above).
+    // v20.1: redundant-button-role and aria-pressed-static added to bypassGemini.
+    // Both are 100% deterministic — Gemini adds zero value and introduces variance.
+    // When not bypassed: Gemini may return unchanged output, causing offlineFixed === normalizedOriginal,
+    // which means the switch case never fires and the fix is silently skipped.
+    // Both offline switch cases exist and are correct (v19). This change ensures they always run.
+    // v20.1b: color-contrast-inline added to bypassGemini — fully deterministic inline style fix.
+    const bypassGemini = ['document-title', 'aria-valid-attr-value', 'aria-allowed-attr', 'redundant-button-role', 'aria-pressed-static', 'color-contrast-inline'];
+    if (bypassGemini.includes(violation.id)) {
+        const offlineFixed = applyOfflineFix(violation, normalizedOriginal, pageContext);
+        if (offlineFixed !== normalizedOriginal) {
+            return { original: normalizedOriginal, fixed: offlineFixed, strategy: "heuristic-fallback", description: "Deterministic fix applied — Gemini bypassed to prevent structural corruption." };
+        }
+        return { original: normalizedOriginal, fixed: normalizedOriginal, strategy: "heuristic-fallback", description: "No automated fix available for this pattern. Edit the right pane manually." };
+    }
+
     const isImageAlt = violation.id === "image-alt" && /<img\s/i.test(normalizedOriginal) && !/\balt=/i.test(normalizedOriginal);
+    // v11 — Bug A Fix 1: opaque CDN images flagged as image-alt-filename (Unsplash photo-NNN,
+    // UUIDs, CDN hashes) must use the vision path. The text Gemini prompt cannot see the image.
+    // deriveAltFromFilename returns null for these URLs (no file extension before ?params).
+    // The offline PATTERN 4 fallback then writes alt="" role="presentation" — wrong for hero images.
+    // Condition: violation is image-alt-filename AND img tag present AND src is HTTP AND
+    // deriveAltFromFilename(src) === null (opaque — UUID/hash/no-extension CDN path).
+    // Non-opaque image-alt-filename violations (readable filenames) are unaffected — they still
+    // go through text Gemini + MASTER_PROMPT [image-alt-filename] rule as before.
+    const isOpaqueCdnImageAlt = violation.id === "image-alt-filename" &&
+        /<img\s/i.test(normalizedOriginal) &&
+        (() => {
+            const src = (normalizedOriginal.match(/\bsrc=["']([^"']+)["']/i) ?? [])[1] ?? "";
+            return src.startsWith("http") && deriveAltFromFilename(src) === null;
+        })();
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (apiKey) {
         const MAX_SNIPPET = 800;
         const safeSnippet = normalizedOriginal.length > MAX_SNIPPET ? normalizedOriginal.slice(0, MAX_SNIPPET) + "\n...[truncated]..." : normalizedOriginal;
 
+        // v11: fetch image for missing-alt (isImageAlt) AND opaque CDN bad-alt (isOpaqueCdnImageAlt).
         let imagePart: { inlineData: { data: string; mimeType: string } } | null = null;
-        if (isImageAlt) {
+        if (isImageAlt || isOpaqueCdnImageAlt) {
             const srcMatch = nodeHtml.match(/src=["']([^"']+)["']/i);
             if (srcMatch?.[1]) imagePart = await fetchImageAsBase64(srcMatch[1]);
         }
+        // v11 — Preemptive mitigation: if the CDN blocks server-side fetches (imagePart === null)
+        // for an opaque CDN image, skip Gemini entirely. VISION_PROMPT with no actual image
+        // produces hallucinated or unchanged output. The offline fallback with pageContext.h1
+        // (extended in Fix A-4 below) is the correct path for this case.
+        //
+        // v16 — Extended to image-alt (missing alt) when fetch also fails.
+        // When isImageAlt=true and imagePart=null: image is on a CDN that blocks server-side
+        // fetches. The text Gemini path (MASTER_PROMPT) cannot see the image either — it may
+        // return the page h1 as alt (e.g. "TechGadgets Store image") which is WRONG.
+        // Skip to offline fallback which uses honest empty alt + role="presentation".
+        // This matches v8.1 behavior: vision path or nothing for missing-alt images.
+        const shouldSkipGemini = (isOpaqueCdnImageAlt && !imagePart) || (isImageAlt && !imagePart);
 
         // For document-title: inject real page content so Gemini generates a specific,
         // meaningful title instead of a generic guess. ogTitle is included because most
         // real websites (WordPress, Shopify, SPAs) set og:title even when <title> is empty.
         // For all other violations: pageContextBlock is empty string — prompt unchanged.
         const pageContextBlock = (violation.id === "document-title" && pageContext)
-            ? `\nPAGE CONTEXT (use this to generate the title — do not invent):\n${
-                pageContext.h1 ? `- h1: ${pageContext.h1}\n` : ""
-              }${pageContext.metaDescription ? `- meta description: ${pageContext.metaDescription}\n` : ""
-              }${pageContext.ogTitle ? `- og:title: ${pageContext.ogTitle}\n` : ""}`
+            ? `\nPAGE CONTEXT (use this to generate the title — do not invent):\n${pageContext.h1 ? `- h1: ${pageContext.h1}\n` : ""
+            }${pageContext.metaDescription ? `- meta description: ${pageContext.metaDescription}\n` : ""
+            }${pageContext.ogTitle ? `- og:title: ${pageContext.ogTitle}\n` : ""}`
             : "";
-        const promptText = (isImageAlt && imagePart)
+        // v11: isVisionPath covers both missing-alt (isImageAlt) and opaque CDN bad-alt (isOpaqueCdnImageAlt).
+        // When imagePart is non-null, VISION_PROMPT is used and Gemini describes what it actually sees.
+        // When imagePart is null (fetch failed), promptText falls through to MASTER_PROMPT text path —
+        // but shouldSkipGemini (set above) will prevent this block from executing in the CDN-blocked case,
+        // so the text path only runs for isImageAlt with a failed fetch (existing behaviour, unchanged).
+        const isVisionPath = isImageAlt || isOpaqueCdnImageAlt;
+        const promptText = (isVisionPath && imagePart)
             ? VISION_PROMPT + safeSnippet.trim()
             : `${MASTER_PROMPT}\n\nVIOLATION: ${violation.id}\nDESCRIPTION: ${violation.help}${pageContextBlock}\n\nHTML TO FIX:\n${safeSnippet.trim()}`;
 
         const contentParts: unknown[] = imagePart ? [promptText, imagePart] : [promptText];
 
-        try {
-            const fixedHtml = await callGeminiWithFallback(apiKey, contentParts);
-            if (fixedHtml && fixedHtml !== normalizedOriginal.trim()) {
-                return {
-                    original: normalizedOriginal, fixed: fixedHtml, strategy: "gemini",
-                    description: isImageAlt ? (imagePart ? "AI Vision: alt text generated by Gemini seeing the actual image" : "AI: alt text inferred from image URL") : `AI fix applied for: ${violation.help}`,
-                };
+        if (!shouldSkipGemini) {
+            try {
+                const fixedHtml = await callGeminiWithFallback(apiKey, contentParts);
+                if (fixedHtml && fixedHtml !== normalizedOriginal.trim()) {
+                    // v19: Post-Gemini cleanup — strip redundant role="button" and normalize aria-pressed on <button> elements
+                    const cleanedFixed = (() => {
+                        let c = fixedHtml.replace(/\s*\brole=["']button["']/gi, "");
+                        if (/\baria-pressed=/i.test(c)) {
+                            const isToggle = /\b(aria-expanded|aria-controls)\s*=/i.test(c) ||
+                                /\b(toggle|switch|expand|collapse|mute)\b/i.test(c);
+                            c = isToggle
+                                ? c.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"')
+                                : c.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+                        }
+                        return c;
+                    })();
+                    return {
+                        original: normalizedOriginal, fixed: cleanedFixed, strategy: "gemini",
+                        // v11: unified description for both vision-path branches
+                        description: isVisionPath
+                            ? (imagePart ? "AI Vision: alt text generated by Gemini seeing the actual image" : "AI: alt text inferred from image URL")
+                            : `AI fix applied for: ${violation.help}`,
+                    };
+                }
+            } catch {
+                // All Gemini models exhausted — fall through to offline
             }
-        } catch {
-            // All Gemini models exhausted — fall through to offline
         }
     }
 

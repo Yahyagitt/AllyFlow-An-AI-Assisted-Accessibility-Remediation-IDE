@@ -95,6 +95,12 @@ function inferLabel(html: string): string {
     return "Input field";
 }
 
+// P15: SYNC-WARNING — isBadAlt and deriveAltFromFilename exist in app/api/heal/route.ts.
+// Those functions are intentionally NOT duplicated here: BP heal violations do not include
+// image-alt patterns, so the functions are not needed in this route.
+// v11 update: isBadAlt in heal/route.ts had its empty-alt guard hardened (empty string now
+// returns true instead of false). If image violations are ever routed through BP heal in the
+// future, copy both functions from heal/route.ts at that time — do not copy the pre-v11 version.
 // ─── OFFLINE HEURISTIC FALLBACK ─────────────────────────────────────────────
 function applyOfflineFix(violation: BestPracticeViolation, nodeHtml: string): string {
     let fixed = nodeHtml.trim();
@@ -104,7 +110,7 @@ function applyOfflineFix(violation: BestPracticeViolation, nodeHtml: string): st
         // <a> → <button>
         if (/^<a\b/i.test(fixed)) {
             const inner = getInnerHtml(fixed, "a");  // preserve SVG icons and nested elements
-            const events = [...fixed.matchAll(/data-af-on\w+=["'][^"']*["']/gi)].map((m) => m[0]).join(" ");
+            const events = [...fixed.matchAll(/data-af-on\w+=(?:"[^"]*"|'[^']*')/gi)].map((m) => m[0]).join(" ");
             const classMatch = fixed.match(/\bclass=["']([^"']*)["']/i);
             const classAttr = classMatch ? ` class="${classMatch[1]}"` : "";
             const idMatch = fixed.match(/\bid=["']([^"']*)["']/i);
@@ -116,14 +122,44 @@ function applyOfflineFix(violation: BestPracticeViolation, nodeHtml: string): st
         if (/^<(div|span|li|p)\b/i.test(fixed)) {
             const tag = fixed.match(/^<(\w+)\b/i)?.[1] ?? "div";
             const inner = getInnerHtml(fixed, tag);  // preserve SVG icons and nested elements
-            const events = [...fixed.matchAll(/data-af-on\w+=["'][^"']*["']/gi)].map((m) => m[0]).join(" ");
+            const events = [...fixed.matchAll(/data-af-on\w+=(?:"[^"]*"|'[^']*')/gi)].map((m) => m[0]).join(" ");
             const classMatch = fixed.match(/\bclass=["']([^"']*)["']/i);
             const classAttr = classMatch ? ` class="${classMatch[1]}"` : "";
             const idMatch = fixed.match(/\bid=["']([^"']*)["']/i);
             const idAttr = idMatch ? ` id="${idMatch[1]}"` : "";
+            const styleMatch = fixed.match(/\bstyle=["']([^"']*)["']/i);
+            const styleAttr = styleMatch ? ` style="${styleMatch[1]}"` : "";
             const ariaExpanded = fixed.match(/\baria-expanded=["'][^"']*["']/i)?.[0] ?? "";
             const ariaLabel = fixed.match(/\baria-label=["'][^"']*["']/i)?.[0] ?? "";
-            fixed = `<button${idAttr}${classAttr}${ariaExpanded ? " " + ariaExpanded : ""}${ariaLabel ? " " + ariaLabel : ""}${events ? " " + events : ""}>${inner}</button>`;
+            fixed = `<button${idAttr}${classAttr}${styleAttr}${ariaExpanded ? " " + ariaExpanded : ""}${ariaLabel ? " " + ariaLabel : ""}${events ? " " + events : ""}>${inner}</button>`;
+        }
+        // v18: aria-pressed normalization — applies to ALL semantic-button conversions above.
+        // Runs unconditionally after both <a> and <div|span|li|p> conversion branches.
+        // aria-pressed is ONLY valid on stateful toggle buttons.
+        // Non-toggle (Add to Cart, Submit, Create Account, Checkout): strip entirely.
+        // Toggle (mute, expand, accordion): normalize to "false" (never static "true").
+        // Toggle detection: aria-expanded OR aria-controls OR toggle/switch/expand class.
+        if (/\baria-pressed=/i.test(fixed)) {
+            const isToggle = /aria-expanded/.test(fixed) || /aria-controls/.test(fixed) ||
+                /\b(toggle|switch|expand|collapse|mute)\b/i.test(
+                    (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? ""
+                );
+            if (isToggle) {
+                fixed = fixed.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"');
+            } else {
+                fixed = fixed.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+            }
+        }
+        // v18: Strip redundant role="button" from converted <button> elements.
+        // Native <button> must never carry role="button" — axe flags aria-allowed-attr.
+        fixed = fixed.replace(/\s*\brole=["']button["']/gi, "");
+        // v24: Strip redundant tabindex="0" from converted <button> elements.
+        // Native <button> is focusable by default — tabindex="0" is redundant noise.
+        // Belt-and-suspenders safety net: catches tabindex="0" regardless of origin
+        // (keyboard-trap injection, developer pre-authoring, Gemini preservation).
+        // Only strips tabindex="0" — tabindex="-1" and tabindex="1+" are intentional and preserved.
+        if (/^<button\b/i.test(fixed)) {
+            fixed = fixed.replace(/\s*\btabindex=["']0["']/gi, "");
         }
     }
 
@@ -137,14 +173,51 @@ function applyOfflineFix(violation: BestPracticeViolation, nodeHtml: string): st
     }
 
     if (vid === "keyboard-trap") {
-        if (!/tabindex=/i.test(fixed)) {
-            const tagMatch = fixed.match(/^<(\w+)\b/i);
-            const tag = tagMatch?.[1] ?? "div";
-            const innerText = getInnerText(fixed, tag).slice(0, 50) || "Interactive content";
-            fixed = fixed.replace(
-                /^<(\w+)\b/i,
-                `<$1 tabindex="0" role="button" aria-label="${innerText}"`
-            );
+        // v17: Separated trap-stripping from attribute-injection.
+        // Previously: aria-label was only injected when tabindex was absent.
+        // Bug: the keyboard trap div in test.html already has tabindex="0" — so the
+        // if(!tabindex) branch was skipped and no aria-label was ever injected.
+        // The element ended up keyboard-accessible but with no accessible name — still bad.
+        //
+        // Fix: strip trap unconditionally, then inject missing attrs unconditionally.
+        // Each attr injection is individually guarded — idempotent on re-scan.
+        // Step 1: Always strip the preventDefault trap (the core WCAG 2.1.2 violation)
+        fixed = fixed.replace(/\s*data-af-onkeydown=["'][^"']*preventDefault[^"']*["']/gi, "");
+        // Step 2: Derive innerText for aria-label BEFORE any attribute injections
+        const ktTagMatch = fixed.match(/^<(\w+)\b/i);
+        const ktTag = ktTagMatch?.[1] ?? "div";
+        const ktInnerText = getInnerText(fixed, ktTag).slice(0, 50) || "Interactive content";
+        // Step 3: Inject aria-label if not present (unconditional — always needed)
+        if (!/\baria-label=/i.test(fixed)) {
+            fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, `$1 aria-label="${ktInnerText}"`);
+        }
+        // Step 4: Inject tabindex="0" if not present.
+        // v24: Guard — skip tabindex="0" injection when element has a button-class signal.
+        // Mirrors v23 Change 3 (Step 5 role guard) — same rationale applied to tabindex.
+        // Elements with fake-btn, btn, button, cta, action-btn, action-cta will be converted
+        // to native <button> by semantic-button. Native <button> is focusable by default —
+        // tabindex="0" is redundant noise. When Gemini handles semantic-button conversion,
+        // it faithfully preserves all attributes including tabindex="0" from the div.
+        // The post-Gemini cleanup does not strip tabindex="0" — so preventing injection here
+        // is the correct upstream fix.
+        const ktTabClassVal = (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? "";
+        const ktTabHasButtonSignal = /\b(fake-btn|fake-button|action-btn|action-cta|btn|cta)\b/i.test(ktTabClassVal);
+        if (!/\btabindex=/i.test(fixed) && !ktTabHasButtonSignal) {
+            fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, `$1 tabindex="0"`);
+        }
+        // Step 5: Inject role="button" if no role present.
+        // v23: Guard — skip role="button" injection when element has a button-class signal.
+        // Elements with fake-btn, btn, button, cta, action-btn, action-cta will be converted
+        // to native <button> by the semantic-button fix that runs after keyboard-trap.
+        // Injecting role="button" on these causes <button role="button"> in the output —
+        // redundant, axe-flagged, and undetectable by SYNTHETIC 5 (which runs at scan time
+        // before any fix session begins, so it can't see post-fix regressions).
+        // Non-fake-btn containers (e.g. <div class="modal-overlay">) still get role="button"
+        // injected — correct, those are genuine keyboard-trap elements that stay as divs.
+        const ktClassVal = (fixed.match(/\bclass=["']([^"']*)["']/i) ?? [])[1] ?? "";
+        const ktHasButtonConversionSignal = /\b(fake-btn|fake-button|action-btn|action-cta|btn|cta)\b/i.test(ktClassVal);
+        if (!/\brole=/i.test(fixed) && !ktHasButtonConversionSignal) {
+            fixed = fixed.replace(/^(<[a-z][a-z0-9]*\b)/i, `$1 role="button"`);
         }
     }
 
@@ -163,24 +236,50 @@ function applyOfflineFix(violation: BestPracticeViolation, nodeHtml: string): st
         case "fake-form-control": {
             // Only add ARIA attrs if not already present — idempotent on re-scan
             if (!/\brole=/i.test(fixed)) {
-                const isRadio = /radio/i.test(fixed);
+                // Expanded signal detection across class, id, inner text, and geometry.
+                // border-radius:50% identifies a circular div as a radio even when no
+                // class/id/text signals exist (purely visual geometric form controls).
+                const isRadio = /\bradio\b/i.test(fixed) ||
+                    /border-radius\s*:\s*50%/i.test(fixed);
                 const role = isRadio ? "radio" : "checkbox";
-                // Handles both > and /> endings; does NOT wrap in <button>
                 fixed = fixed.replace(
-                    /(<(?:div|span)\b[^>]*?)(\/?>)/i,
+                    /^(<(?:div|span)\b[^>]*)(\/?>)/i,
                     `$1 role="${role}" aria-checked="false" tabindex="0"$2`
                 );
             }
             break;
         }
         case "new-tab-warning":
-            fixed = fixed.replace(/^(<a\b[^>]*)>/i, (_: string, open: string) => {
+            fixed = fixed.replace(/^(<a\b[^>]*)>([\s\S]*?)<\/a>/i, (_: string, open: string, inner: string) => {
+                const linkText = inner.replace(/<[^>]+>/g, '').trim();
                 if (/aria-label=/i.test(open))
                     return open.replace(/aria-label=["']([^"']*)["']/i,
-                        (_2: string, v: string) => `aria-label="${v} (opens in new tab)"`) + ">";
-                return `${open} aria-label="Link (opens in new tab)">`;
+                        (_2: string, v: string) => `aria-label="${v} (opens in new tab)"`) + `>${inner}</a>`;
+                const label = linkText ? `${linkText} (opens in new tab)` : "Link (opens in new tab)";
+                return `${open} aria-label="${label}">${inner}</a>`;
             });
             break;
+        case "css-class-contrast": {
+            // v20.1: Rewritten to match new scanner output format (Change 3 Part A).
+            // Input `fixed` is now a full <style>...</style> block (not a bare #hex token).
+            // Rewrites every low-contrast color: hex value inside the block to #1a1a1a.
+            // Negative lookbehind prevents touching background-color, border-color, etc.
+            // YIQ threshold > 180 matches detectCssClassContrast scanner exactly.
+            fixed = fixed.replace(
+                /(?<![a-z-])(color\s*:\s*)(#([0-9a-fA-F]{3,6}))\s*([;}"'])/gi,
+                (match: string, prop: string, _hex: string, hexVal: string, terminator: string) => {
+                    const full = hexVal.length === 3 ? hexVal.split('').map((c: string) => c + c).join('') : hexVal;
+                    const r = parseInt(full.slice(0, 2), 16);
+                    const g = parseInt(full.slice(2, 4), 16);
+                    const b = parseInt(full.slice(4, 6), 16);
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    // v21: Threshold corrected from 180 → 128 to match scanner in best-practices/route.ts.
+                    // Catches #aaaaaa (170), #999 (153), #888 (136). Skips #767676 (118 — WCAG AA passing).
+                    return brightness > 128 ? `${prop}#1a1a1a${terminator}` : match;
+                }
+            );
+            break;
+        }
 
     }
 
@@ -245,9 +344,21 @@ async function applyBestPracticesFix(violation: BestPracticeViolation, nodeHtml:
                 // Negative lookbehind prevents double-normalizing data-af-onclick → data-af-data-af-onclick.
                 // This is defence layer 1 (route); page.tsx setHealResult is defence layer 2.
                 const normalizedFixed = fixedHtml.replace(/(?<!data-af-)\b(on[a-z]+)\s*=/gi, "data-af-$1=");
+                // v19: Post-Gemini cleanup — strip redundant role="button" and normalize aria-pressed on <button> elements
+                const cleanedNormalized = (() => {
+                    let c = normalizedFixed.replace(/\s*\brole=["']button["']/gi, "");
+                    if (/\baria-pressed=/i.test(c)) {
+                        const isToggle = /\b(aria-expanded|aria-controls)\s*=/i.test(c) ||
+                            /\b(toggle|switch|expand|collapse|mute)\b/i.test(c);
+                        c = isToggle
+                            ? c.replace(/\baria-pressed=["'][^"']*["']/g, 'aria-pressed="false"')
+                            : c.replace(/\s*\baria-pressed=["'][^"']*["']/g, "");
+                    }
+                    return c;
+                })();
                 return {
                     original,
-                    fixed: normalizedFixed,
+                    fixed: cleanedNormalized,
                     strategy: "gemini",
                     description: `AI fix applied for: ${violation.title}`,
                 };
